@@ -1,0 +1,19 @@
+node_modules
+apps/*/node_modules
+apps/web/dist
+.env
+.env.local
+*.log
+
+# data runtime (histori menit, sinyal, state bot, mount Docker)
+data/
+apps/server/data/minutes/
+apps/server/data/signals/
+apps/server/data/state/
+
+# bundel model lama
+apps/server/models/backup-*
+
+# sisa percobaan
+scripts/tmp-*
+.DS_Store

@@ -1,0 +1,17 @@
+node_modules
+apps/*/node_modules
+apps/web/dist
+.git
+.gitignore
+_reference
+fixtures
+docs
+*.log
+.env
+.env.local
+apps/server/data/minutes
+apps/server/data/signals
+apps/server/data/state
+apps/server/models/backup-*
+.DS_Store
+scripts/tmp-*

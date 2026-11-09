@@ -1,0 +1,43 @@
+services:
+  simulasi:
+    build: .
+    image: simulasi-6-model:latest
+    container_name: simulasi-6-model
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      PORT: 8080
+      SYMBOL: ${SYMBOL:-SOLUSDT}
+      INITIAL_MODE: ${INITIAL_MODE:-live}
+      AUTO_START: ${AUTO_START:-true}
+      SIGNAL_DOMINANCE_PCT: ${SIGNAL_DOMINANCE_PCT:-85}
+      SIGNAL_STREAK: ${SIGNAL_STREAK:-12}
+      BINANCE_SPOT_WS: ${BINANCE_SPOT_WS:-wss://data-stream.binance.vision/ws}
+      BINANCE_SPOT_REST: ${BINANCE_SPOT_REST:-https://data-api.binance.vision}
+      BINANCE_FUTURES_WS: ${BINANCE_FUTURES_WS:-wss://fstream.binance.com/market/ws}
+      BINANCE_FUTURES_REST: ${BINANCE_FUTURES_REST:-https://fapi.binance.com}
+      TZ: Asia/Jakarta
+    volumes:
+      # hanya data yang berubah saat runtime yang di-mount;
+      # data/replay (data validasi) tetap dari image
+      - ./data/minutes:/app/apps/server/data/minutes
+      - ./data/signals:/app/apps/server/data/signals
+      - ./data/state:/app/apps/server/data/state
+      # model bisa diganti tanpa rebuild image (lihat docs/UPDATE-MODEL.md)
+      - ./apps/server/models:/app/apps/server/models
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

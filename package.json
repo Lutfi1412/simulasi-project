@@ -1,0 +1,17 @@
+{
+  "name": "simulasi-testing",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/server", "apps/web"],
+  "scripts": {
+    "dev": "bun run scripts/dev.ts",
+    "build": "bun run --cwd apps/web build",
+    "start": "bun run apps/server/src/index.ts",
+    "verify": "bun run scripts/verify-all.ts",
+    "verify:models": "bun run scripts/verify-models.ts",
+    "verify:features": "bun run scripts/verify-features.ts",
+    "verify:sim": "bun run scripts/verify-sim.ts",
+    "models:install": "bun run scripts/install-models.ts"
+  }
+}

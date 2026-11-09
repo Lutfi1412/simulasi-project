@@ -1,0 +1,112 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-shell: #08090a;
+  --color-panel: #0d0f12;
+  --color-raise: #14171c;
+  --color-line: #23272e;
+  --color-ink: #e6edf3;
+  --color-mute: #8b949e;
+  --color-dim: #5b636d;
+  --color-long: #3fb950;
+  --color-short: #f85149;
+  --color-amber: #d29922;
+  --color-cyan: #39c5cf;
+  --color-violet: #a371f7;
+  --color-pink: #f778ba;
+  --color-blue: #58a6ff;
+
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+html {
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  background: var(--color-shell);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* semua angka pakai monospace + lebar tetap supaya tidak "geser" saat update */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'zero' 1;
+}
+
+.label {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-dim);
+  font-weight: 500;
+}
+
+.hair {
+  background-image: linear-gradient(to right, var(--color-line) 0 4px, transparent 4px 8px);
+  background-size: 8px 1px;
+  background-repeat: repeat-x;
+  height: 1px;
+}
+
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2px;
+  background: var(--color-line);
+  border-radius: 0;
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 14px;
+  background: var(--color-ink);
+  border: 0;
+  border-radius: 1px;
+  cursor: pointer;
+}
+input[type='range']::-moz-range-thumb {
+  width: 10px;
+  height: 14px;
+  background: var(--color-ink);
+  border: 0;
+  border-radius: 1px;
+  cursor: pointer;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2f37;
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a4048;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.live-dot {
+  animation: pulse-dot 2.4s ease-in-out infinite;
+}
