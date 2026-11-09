@@ -10,6 +10,9 @@ COPY apps/web/package.json apps/web/package.json
 RUN bun install --frozen-lockfile
 
 COPY . .
+# NODE_ENV=production khusus untuk build UI: kalau tetap development, Vite membundel
+# React versi dev (bundel ~2x lebih besar dan lebih lambat di browser).
+ENV NODE_ENV=production
 RUN bun run --cwd apps/web build
 
 FROM oven/bun:1 AS runtime

@@ -31,6 +31,38 @@ tiga tempat: `.env`, unit aplikasi, dan perintah `cloudflared --url`.
 
 ---
 
+## Status deploy yang berjalan (VPS Lutfi, 9 Nov 2026)
+
+Yang benar-benar dipasang dan sudah diuji, bukan rencana:
+
+| Hal | Nilai nyata |
+|---|---|
+| Kode | `/home/ubuntu/simulasi-project` (git clone `Lutfi1412/simulasi-project` + overlay dari laptop) |
+| Container | `simulasi-6-model` (image `simulasi-6-model:latest`, `restart=unless-stopped`) |
+| Port | `127.0.0.1:8090 -> 8080` (hanya localhost) |
+| Tunnel | `cloudflared-simulasi.service`, `--edge-ip-version 4`, URL acak `*.trycloudflare.com` |
+| URL aktif | tersimpan di `/home/ubuntu/simulasi-url.txt` (`~/simulasi-url.sh` memperbaruinya tiap 2 menit) |
+| Data | `/home/ubuntu/simulasi-project/data/{minutes,signals,state}` (persist, ikut restart) |
+| Layanan lain | `futures-signal` 8080, `rekapan-narsum-rest` 3001, `rekapan-narsum-db` 21051 — semua tetap hidup |
+
+Catatan penting yang berbeda dari teori di bawah:
+
+1. **Repo GitHub belum lengkap untuk runtime.** `apps/server/models` di repo hanya 748 KB
+   (harusnya 9,6 MB) dan `apps/server/data/replay` tidak ada. Deploy harus menyalin model +
+   replay dari laptop (tar 14 MB), kalau tidak model gagal dimuat dan tab REPLAY kosong.
+2. **Dockerfile lama membundel React mode development** (`ENV NODE_ENV=development` di stage
+   build) sehingga bundel 495 KB, bukan 260 KB. Sudah diperbaiki: `ENV NODE_ENV=production`
+   sebelum `RUN bun run --cwd apps/web build`.
+3. **VPS ini tidak punya IPv6 global** dan precheck cloudflared melaporkan QUIC/TCP 7844
+   gagal, padahal TCP 7844 ke edge bisa. Tanpa `--edge-ip-version 4`, cloudflared memilih
+   AAAA dan tunnel mati dengan error `Register tunnel error ... context deadline exceeded`.
+   Dengan flag itu, tunnel mendaftar normal (`protocol=quic`, lokasi sin/cgk).
+4. **URL quick tunnel berubah setiap cloudflared restart/reboot.** Bukan bug. Ambil yang
+   terbaru dengan `~/simulasi-url.sh` atau `cat ~/simulasi-url.txt`; cron 2 menit dan
+   `@reboot` menjaga berkas itu tetap segar.
+
+---
+
 ## 0. Ringkas: urutan kerjanya
 
 1. Cek VPS (RAM, disk, port, bun, cloudflared).
@@ -276,12 +308,16 @@ sudo tee /etc/systemd/system/cloudflared-simulasi.service > /dev/null <<'EOF'
 Description=Cloudflare Quick Tunnel untuk Simulasi 6 Model
 After=network-online.target simulasi-6-model.service
 Wants=network-online.target simulasi-6-model.service
+# jangan menyerah restart: jaringan VPS kadang menolak sesaat ke edge Cloudflare
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8090
+# VPS Lutfi tidak punya IPv6 global -> paksa edge IPv4 (QUIC tetap dipakai).
+# Tanpa flag ini cloudflared memilih AAAA dan gagal: "Register tunnel error ... context deadline exceeded".
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --edge-ip-version 4 --url http://127.0.0.1:8090
 Restart=always
-RestartSec=5
+RestartSec=10
 StandardOutput=journal
 StandardError=journal
 
@@ -305,6 +341,27 @@ Ambil URL-nya:
 ```bash
 journalctl -u cloudflared-simulasi -n 300 --no-pager \
   | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -1
+```
+
+Supaya tidak perlu mengingat perintah itu (URL berubah tiap restart), pasang pembantu di
+VPS. Berkasnya menyimpan URL terbaru dan diperbarui cron tiap 2 menit serta saat reboot:
+
+```bash
+cat > ~/simulasi-url.sh <<'EOF'
+#!/usr/bin/env bash
+# Simpan URL Quick Tunnel simulasi 6 model yang sedang aktif.
+set -euo pipefail
+URL=$(journalctl -u cloudflared-simulasi --no-pager -n 400 2>/dev/null \
+  | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true)
+[ -n "${URL:-}" ] && echo "$URL" > "$HOME/simulasi-url.txt"
+cat "$HOME/simulasi-url.txt" 2>/dev/null || echo "URL belum ada (cloudflared belum tersambung)"
+EOF
+chmod +x ~/simulasi-url.sh
+( crontab -l 2>/dev/null | grep -v 'simulasi-url' ;
+  echo '*/2 * * * * /home/ubuntu/simulasi-url.sh >/dev/null 2>&1' ;
+  echo '@reboot sleep 45; /home/ubuntu/simulasi-url.sh >/dev/null 2>&1' ) | crontab -
+~/simulasi-url.sh          # cetak URL aktif
+cat ~/simulasi-url.txt     # berkas yang sama, tanpa hitung ulang
 ```
 
 Saat pertama start, URL juga muncul di `journalctl -u cloudflared-simulasi -f`
@@ -447,6 +504,10 @@ Kalau memilih Docker, unit `simulasi-6-model.service` di langkah 6 tidak dipakai
 | `status=203/EXEC` | path Bun salah / bukan absolut | `command -v bun`, pakai `/home/ubuntu/.bun/bin/bun` |
 | Service langsung mati, log `EADDRINUSE` | port 8090 dipakai proses lain | `ss -ltnp \| grep 8090`, pilih port lain (ubah `.env` + unit + `--url`) |
 | `curl` di VPS sehat, URL tunnel 502 | `--url` menunjuk port salah (8080 vs 8090) atau app mati | cek `ExecStart` unit tunnel dan `systemctl status simulasi-6-model` |
+| URL tunnel balas **530** "Cloudflare Tunnel error" | cloudflared belum terdaftar ke edge (atau memilih IPv6 yang tidak ada) | `journalctl -u cloudflared-simulasi \| grep Registered`; kalau kosong tambahkan `--edge-ip-version 4` lalu restart |
+| `Register tunnel error ... context deadline exceeded` | VPS tanpa IPv6 global, cloudflared memilih AAAA; sesekali juga jaringan ISP menolak sesaat | pakai `--edge-ip-version 4`, `StartLimitIntervalSec=0`, tunggu restart otomatis |
+| Model `available:false` / tab REPLAY kosong | `apps/server/models` atau `data/replay` tidak ikut ter-deploy (repo GitHub belum lengkap) | salin `apps/server/models` (9,6 MB) + `apps/server/data/replay` (8,9 MB) dari laptop |
+| UI lebih lambat / bundel ~495 KB | build UI dengan `NODE_ENV=development` | Dockerfile harus `ENV NODE_ENV=production` sebelum `bun run --cwd apps/web build` |
 | URL tidak pernah muncul | outbound 7844 diblokir, DNS VPS rusak | `journalctl -u cloudflared-simulasi -f`, tes `curl -I https://1.1.1.1` |
 | UI terbuka tapi harga diam | WS Binance bermasalah | `curl .../api/health` → lihat `feed.*.transport`; kalau `blocked`, cek DNS Binance di VPS (aplikasi punya DoH + tunnel otomatis) |
 | `historyMinutes` tidak naik | jam VPS meleset, feed futures mati, atau celah menit | `timedatectl`, `api/health`, lihat `data/minutes/*.jsonl` 3 baris terakhir |
