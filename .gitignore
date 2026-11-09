@@ -6,10 +6,14 @@ apps/web/dist
 *.log
 
 # data runtime (histori menit, sinyal, state bot, mount Docker)
-data/
+# NB: hanya folder data/ di root (mount Docker). Pakai garis miring depan, kalau tidak
+# semua folder bernama 'data' ikut ter-ignore — termasuk data/replay yang dibutuhkan REPLAY.
+/data/
 apps/server/data/minutes/
 apps/server/data/signals/
 apps/server/data/state/
+# salinan lama replay/golden di bundel model (kode memakai apps/server/data/replay)
+apps/server/models/current/data/
 
 # bundel model lama
 apps/server/models/backup-*
