@@ -37,6 +37,18 @@ export default function App() {
     saveSoundModels(soundModels)
   }, [soundModels])
 
+  // Klik/ketukan pertama di halaman membuka izin audio, supaya notif sinyal
+  // berikutnya (yang datang dari WebSocket, bukan klik) tetap bisa berbunyi.
+  useEffect(() => {
+    const unlock = () => primeAudio()
+    window.addEventListener('pointerdown', unlock, { once: true })
+    window.addEventListener('keydown', unlock, { once: true })
+    return () => {
+      window.removeEventListener('pointerdown', unlock)
+      window.removeEventListener('keydown', unlock)
+    }
+  }, [])
+
   useSignalSound(snapshot, soundModels)
 
   const post = useCallback(async (path: string, body?: unknown) => {

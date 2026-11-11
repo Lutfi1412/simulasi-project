@@ -63,66 +63,147 @@ export function cancelSpeech(): void {
 
 // Satu elemen audio dipakai ulang supaya file notif tidak diunduh berulang.
 let notifEl: HTMLAudioElement | null = null
+// Elemen terpisah khusus membuka izin autoplay; jangan pakai elemen notif karena
+// pause() dari proses unlock bisa memotong notif yang baru saja diputar.
+let unlockEl: HTMLAudioElement | null = null
+
+function makeAudio(volume: number): HTMLAudioElement | null {
+  if (typeof window === 'undefined' || typeof Audio === 'undefined') return null
+  const el = new Audio(NOTIF_SRC)
+  el.preload = 'auto'
+  el.volume = volume
+  return el
+}
 
 function notifAudio(): HTMLAudioElement | null {
-  if (typeof window === 'undefined' || typeof Audio === 'undefined') return null
-  if (!notifEl) {
-    notifEl = new Audio(NOTIF_SRC)
-    notifEl.preload = 'auto'
-    notifEl.volume = 0.9
-  }
+  if (!notifEl) notifEl = makeAudio(0.9)
   return notifEl
 }
 
 /**
- * Buka izin autoplay browser. Panggil dari aksi pengguna (toggle ON / tes suara),
- * karena browser memblokir suara yang diputar tanpa interaksi.
+ * Buka izin autoplay browser. Panggil dari aksi pengguna (klik pertama, toggle ON,
+ * atau tombol tes suara), karena browser memblokir suara tanpa interaksi.
  */
 export function primeAudio(): void {
-  const el = notifAudio()
-  if (!el) return
-  el.muted = true
-  const played = el.play()
-  if (played && typeof played.then === 'function') {
-    played
-      .then(() => {
-        el.pause()
-        el.currentTime = 0
-        el.muted = false
-      })
-      .catch(() => {
-        el.muted = false
-      })
+  if (!unlockEl) unlockEl = makeAudio(0.01)
+  if (unlockEl) {
+    const el = unlockEl
+    try {
+      el.currentTime = 0
+      const played = el.play()
+      if (played && typeof played.then === 'function') {
+        played
+          .then(() => {
+            el.pause()
+            el.currentTime = 0
+          })
+          .catch(() => {})
+      }
+    } catch {
+      /* diabaikan */
+    }
   }
+  // memicu pemuatan daftar voice lebih awal supaya ucapan tidak telat
+  if (speechSupported()) window.speechSynthesis.getVoices()
 }
 
-/** Bunyikan notif.mp3 (nada pemberitahuan). */
-export function playNotif(): void {
-  const el = notifAudio()
-  if (!el) return
-  try {
-    el.currentTime = 0
-    const played = el.play()
-    if (played && typeof played.catch === 'function') void played.catch(() => {})
-  } catch {
-    /* autoplay diblokir browser — suara akan berbunyi setelah ada interaksi */
-  }
+/** Putar notif.mp3 dan tunggu sampai selesai sebelum lanjut ke ucapan. */
+function playNotifAndWait(): Promise<void> {
+  return new Promise((resolve) => {
+    const el = notifAudio()
+    if (!el) {
+      resolve()
+      return
+    }
+    let settled = false
+    const done = () => {
+      if (settled) return
+      settled = true
+      el.removeEventListener('ended', done)
+      el.removeEventListener('error', done)
+      resolve()
+    }
+    el.addEventListener('ended', done)
+    el.addEventListener('error', done)
+    try {
+      el.currentTime = 0
+      const played = el.play()
+      if (played && typeof played.then === 'function') {
+        played
+          .then(() => {
+            // jaring pengaman bila event 'ended' tidak terpicu
+            const wait = Number.isFinite(el.duration) && el.duration > 0 ? el.duration * 1000 : 1500
+            setTimeout(done, wait + 500)
+          })
+          .catch(done)
+      } else {
+        setTimeout(done, 1500)
+      }
+    } catch {
+      done()
+    }
+  })
+}
+
+/** Ucapkan teks lalu selesai setelah ucapan terakhir berhenti (dengan batas waktu). */
+function speakAsync(text: string, repeat: number): Promise<void> {
+  return new Promise((resolve) => {
+    if (!speechSupported()) {
+      resolve()
+      return
+    }
+    const synth = window.speechSynthesis
+    const voice = pickVoice()
+    const count = Math.max(1, repeat)
+    let finished = false
+    const done = () => {
+      if (finished) return
+      finished = true
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(done, 1500 + count * 2500)
+    for (let i = 0; i < count; i++) {
+      const utter = new SpeechSynthesisUtterance(text)
+      utter.lang = 'id-ID'
+      utter.rate = 1
+      utter.pitch = 1
+      utter.volume = 1
+      if (voice) utter.voice = voice
+      if (i === count - 1) {
+        utter.onend = done
+        utter.onerror = done
+      }
+      synth.speak(utter)
+    }
+  })
+}
+
+// Antrean supaya beberapa sinyal berurutan: notif → ucapan → sinyal berikutnya.
+let alertChain: Promise<void> = Promise.resolve()
+
+function enqueueAlert(text: string, repeat: number): Promise<void> {
+  const run = alertChain.then(async () => {
+    await playNotifAndWait()
+    await speakAsync(text, repeat)
+  })
+  alertChain = run.catch(() => {})
+  return run
 }
 
 export function signalText(side: 1 | -1, model: string): string {
   return `sinyal ${side === 1 ? 'long' : 'short'} dari model ${model}`
 }
 
-/** Notifikasi lengkap: notif.mp3 + ucapan sinyal (diulang beberapa kali). */
-export function alertSignal(side: 1 | -1, model: string, repeat = 3): boolean {
-  playNotif()
-  return speak(signalText(side, model), repeat)
+/** Notifikasi lengkap: notif.mp3 selesai dulu, baru ucapan sinyal. */
+export function alertSignal(side: 1 | -1, model: string, repeat = 3): Promise<void> {
+  return enqueueAlert(signalText(side, model), repeat)
 }
 
-/** Tes suara dari topbar: memutar notif.mp3 lalu contoh ucapan sinyal. */
+/** Tes suara dari topbar: notif.mp3 lalu contoh ucapan sinyal. */
 export function testAlert(): boolean {
-  playNotif()
-  return speak('tes suara notifikasi sinyal, sinyal long dari model meta label', 1)
+  void enqueueAlert('tes suara notifikasi sinyal, sinyal long dari model meta label', 1)
+  return true
 }
 
 /**
@@ -155,7 +236,7 @@ export function useSignalSound(snapshot: Snapshot | null, enabled: Record<string
     // list terbaru di depan; bunyikan dari yang paling lama supaya urutannya wajar
     for (const s of fresh.reverse()) {
       if (!enabled[s.model]) continue
-      alertSignal(s.side, s.model, 3)
+      void alertSignal(s.side, s.model, 3)
     }
   }, [snapshot, enabled])
 }
