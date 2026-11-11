@@ -32,19 +32,28 @@ export function prob(value: number | null | undefined): string {
   return `${(value * 100).toFixed(0)}%`
 }
 
+/** Semua waktu ditampilkan dalam WIB (Asia/Jakarta), apa pun zona browser-nya. */
+export const WIB_LABEL = 'WIB'
+const WIB_TZ = 'Asia/Jakarta'
+
 export function hhmm(ts: number): string {
   if (!ts) return '—'
-  return new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+  return new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: WIB_TZ })
 }
 
 export function hhmmss(ts: number): string {
   if (!ts) return '—'
-  return new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return new Date(ts).toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZone: WIB_TZ,
+  })
 }
 
 export function dayMonth(ts: number): string {
   if (!ts) return '—'
-  return new Date(ts).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
+  return new Date(ts).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', timeZone: WIB_TZ })
 }
 
 /** durasi menit -> "3j 12m" */

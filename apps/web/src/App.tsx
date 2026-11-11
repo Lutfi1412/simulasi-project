@@ -9,6 +9,14 @@ import { TopBar } from './components/TopBar'
 import { TradeBlotter } from './components/TradeBlotter'
 import { useSnapshot } from './lib/useSnapshot'
 import { dayMonth, hhmm, money, pct, pnlClass } from './lib/format'
+import { applyTheme, loadTheme, type Theme } from './lib/theme'
+import {
+  loadSoundModels,
+  saveSoundModels,
+  speak,
+  speechSupported,
+  useSignalSound,
+} from './lib/sound'
 
 export default function App() {
   const { snapshot, connection } = useSnapshot()
@@ -17,6 +25,18 @@ export default function App() {
   const [diagnosing, setDiagnosing] = useState(false)
   const [activityTab, setActivityTab] = useState<'sinyal' | 'log'>('sinyal')
   const [localLogs, setLocalLogs] = useState<LogEntry[]>([])
+  const [theme, setTheme] = useState<Theme>(() => loadTheme())
+  const [soundModels, setSoundModels] = useState<Record<string, boolean>>(() => loadSoundModels())
+
+  useEffect(() => {
+    applyTheme(theme)
+  }, [theme])
+
+  useEffect(() => {
+    saveSoundModels(soundModels)
+  }, [soundModels])
+
+  useSignalSound(snapshot, soundModels)
 
   const post = useCallback(async (path: string, body?: unknown) => {
     setBusy(true)
@@ -91,6 +111,16 @@ export default function App() {
     void post('/api/system', { enabled: !snapshot.enabled })
   }, [post, snapshot])
 
+  const testSound = useCallback(() => {
+    if (!speechSupported()) {
+      setError('Browser ini tidak mendukung suara (Web Speech API). Coba Chrome/Edge.')
+      return
+    }
+    if (!speak('tes suara notifikasi sinyal, sinyal long dari model Meta-label', 1)) {
+      setError('Suara gagal diputar di browser ini.')
+    }
+  }, [])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName
@@ -128,6 +158,9 @@ export default function App() {
         onDiagnose={() => void diagnose()}
         onTogglePower={togglePower}
         onSetMode={(m: Mode) => void post('/api/mode', { mode: m })}
+        theme={theme}
+        onTheme={setTheme}
+        onTestSound={testSound}
       />
       <StatusStrip
         snapshot={snapshot}
@@ -167,6 +200,10 @@ export default function App() {
                     }
                   }}
                   onNeutralize={(id) => void post('/api/bots/neutral', { id })}
+                  soundOn={Boolean(soundModels[bot.model])}
+                  onToggleSound={() =>
+                    setSoundModels((prev) => ({ ...prev, [bot.model]: !prev[bot.model] }))
+                  }
                 />
               ))}
             </div>

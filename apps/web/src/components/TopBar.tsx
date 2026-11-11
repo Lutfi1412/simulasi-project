@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Mode, Snapshot } from '../../../server/src/api/contract'
 import { hhmmss, price, pct } from '../lib/format'
+import type { Theme } from '../lib/theme'
 import type { Connection } from '../lib/useSnapshot'
 
 function describeLag(ms: number): string {
@@ -39,9 +40,23 @@ interface TopBarProps {
   onTogglePower: () => void
   onSetMode: (mode: Mode) => void
   onDiagnose: () => void
+  theme: Theme
+  onTheme: (theme: Theme) => void
+  onTestSound: () => void
 }
 
-export function TopBar({ snapshot, connection, busy, diagnosing, onTogglePower, onSetMode, onDiagnose }: TopBarProps) {
+export function TopBar({
+  snapshot,
+  connection,
+  busy,
+  diagnosing,
+  onTogglePower,
+  onSetMode,
+  onDiagnose,
+  theme,
+  onTheme,
+  onTestSound,
+}: TopBarProps) {
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
@@ -88,6 +103,31 @@ export function TopBar({ snapshot, connection, busy, diagnosing, onTogglePower, 
           </div>
 
           <div className="hidden h-8 w-px bg-line sm:block" />
+
+          <div className="flex items-center border border-line" role="group" aria-label="tema tampilan">
+            {(['gelap', 'malam'] as Theme[]).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => onTheme(t)}
+                aria-pressed={theme === t}
+                className={`min-h-9 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors sm:min-h-0 ${
+                  theme === t ? 'bg-raise text-ink' : 'text-dim hover:text-mute'
+                }`}
+              >
+                {t === 'gelap' ? 'Gelap' : 'Malam'}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={onTestSound}
+            className="min-h-9 border border-line px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute transition-colors hover:border-cyan/40 hover:text-cyan sm:min-h-0"
+            title="bunyikan tes notifikasi suara (Web Speech API)"
+          >
+            Tes suara
+          </button>
 
           <div
             className="flex items-center border border-line"

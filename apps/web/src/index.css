@@ -20,6 +20,27 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
+/*
+ * Tema. `gelap` = palet bawaan (di @theme). `malam` = hitam lebih pekat.
+ * Nilai di bawah menimpa variabel @theme karena selektornya lebih spesifik.
+ */
+html[data-theme='malam'] {
+  --color-shell: #010203;
+  --color-panel: #05070a;
+  --color-raise: #0b0f14;
+  --color-line: #1a1f27;
+  --color-ink: #e2ebf5;
+  --color-mute: #808b99;
+  --color-dim: #4f5866;
+  --color-long: #2fd884;
+  --color-short: #ff5d68;
+  --color-amber: #e6ad2f;
+  --color-cyan: #34d3df;
+  --color-violet: #ad80ff;
+  --color-pink: #ff7fc6;
+  --color-blue: #66b3ff;
+}
+
 html {
   color-scheme: dark;
   -webkit-font-smoothing: antialiased;
@@ -91,11 +112,11 @@ input[type='range']::-moz-range-thumb {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2a2f37;
+  background: var(--color-line);
   border-radius: 0;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a4048;
+  background: var(--color-dim);
 }
 
 @keyframes pulse-dot {

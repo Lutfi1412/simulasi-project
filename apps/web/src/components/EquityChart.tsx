@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import type { BotView } from '../../../server/src/api/contract'
-import { hhmm, kindStyle, pct, pnlClass } from '../lib/format'
+import { WIB_LABEL, hhmm, kindStyle, pct, pnlClass } from '../lib/format'
 
 function useWidth<T extends HTMLElement>() {
   const ref = useRef<T | null>(null)
@@ -23,43 +23,195 @@ interface EquityChartProps {
   label: string
 }
 
-/** Grafik ekuitas 6 bot sebagai % terhadap modal (satu sumbu, warna per model). */
+interface ViewWindow {
+  /** posisi awal jendela, 0..1 dari seluruh rentang waktu */
+  start: number
+  /** posisi akhir jendela, 0..1 */
+  end: number
+}
+
+const MIN_WINDOW = 0.02
+
+/**
+ * Grafik ekuitas 6 bot sebagai % terhadap modal.
+ *
+ * - Responsif: lebar & tinggi mengikuti kontainer.
+ * - Zoom: scroll di atas grafik, atau tombol + / −.
+ * - Geser: drag horizontal (mouse/sentuh).
+ * - Sumbu Y otomatis mengikuti data yang sedang terlihat, jadi garis tidak
+ *   mengecil saat histori sudah panjang.
+ */
 export function EquityChart({ bots, label }: EquityChartProps) {
   const { ref, width } = useWidth<HTMLDivElement>()
-  const height = 210
-  const pad = { top: 12, right: 46, bottom: 20, left: 6 }
+  const height = Math.max(190, Math.min(320, Math.round(width * 0.26)))
+  const padTop = 12
+  const padRight = 52
+  const padBottom = 22
+  const padLeft = 8
 
-  const series = bots.map((bot) => ({
-    bot,
-    color: kindStyle(bot.kind).hex,
-    points: bot.curve.map((p) => ({ ts: p.ts, value: (p.equity / bot.capital - 1) * 100 })),
-  }))
+  const series = useMemo(
+    () =>
+      bots.map((bot) => ({
+        bot,
+        color: kindStyle(bot.kind).hex,
+        // live memakai milidetik, replay memakai detik — samakan ke ms untuk sumbu waktu
+        points: bot.curve.map((p) => ({
+          ts: p.ts > 1e11 ? p.ts : p.ts * 1000,
+          value: (p.equity / bot.capital - 1) * 100,
+        })),
+      })),
+    [bots],
+  )
 
-  const all = series.flatMap((s) => s.points)
+  const all = useMemo(() => series.flatMap((s) => s.points), [series])
   const hasData = all.length > 1
-  const tsMin = hasData ? Math.min(...all.map((p) => p.ts)) : Date.now() - 3600_000
-  const tsMax = hasData ? Math.max(...all.map((p) => p.ts)) : Date.now()
-  const spanX = Math.max(1, tsMax - tsMin)
+  const fullMin = hasData ? Math.min(...all.map((p) => p.ts)) : Date.now() - 3600_000
+  const fullMax = hasData ? Math.max(...all.map((p) => p.ts)) : Date.now()
+  const fullSpan = Math.max(1, fullMax - fullMin)
 
-  const rawMin = hasData ? Math.min(0, ...all.map((p) => p.value)) : -1
-  const rawMax = hasData ? Math.max(0, ...all.map((p) => p.value)) : 1
-  const padY = Math.max((rawMax - rawMin) * 0.12, 0.8)
-  const yMin = rawMin - padY
-  const yMax = rawMax + padY
+  const [view, setView] = useState<ViewWindow>({ start: 0, end: 1 })
+  const [dragging, setDragging] = useState(false)
+  const dragRef = useRef<{ x: number; start: number; end: number } | null>(null)
 
-  const innerW = Math.max(40, width - pad.left - pad.right)
-  const innerH = height - pad.top - pad.bottom
-  const x = (ts: number) => pad.left + ((ts - tsMin) / spanX) * innerW
-  const y = (v: number) => pad.top + innerH - ((v - yMin) / (yMax - yMin)) * innerH
+  const innerW = Math.max(40, width - padLeft - padRight)
+  const innerH = height - padTop - padBottom
 
-  const ticks = 4
-  const yTicks = Array.from({ length: ticks + 1 }, (_, i) => yMin + ((yMax - yMin) / ticks) * i)
+  const t0 = fullMin + view.start * fullSpan
+  const t1 = fullMin + view.end * fullSpan
+
+  const visible = series.map((s) => ({
+    ...s,
+    points: s.points.filter((p) => p.ts >= t0 && p.ts <= t1),
+  }))
+  const visibleValues = visible.flatMap((s) => s.points.map((p) => p.value))
+
+  let yMin = -1
+  let yMax = 1
+  if (visibleValues.length) {
+    const lo = Math.min(...visibleValues)
+    const hi = Math.max(...visibleValues)
+    if (hi - lo < 0.2) {
+      const mid = (hi + lo) / 2
+      yMin = mid - 0.5
+      yMax = mid + 0.5
+    } else {
+      const padY = (hi - lo) * 0.12
+      yMin = lo - padY
+      yMax = hi + padY
+    }
+  }
+
+  const x = (ts: number) => padLeft + ((ts - t0) / Math.max(1, t1 - t0)) * innerW
+  const y = (v: number) => padTop + innerH - ((v - yMin) / Math.max(1e-9, yMax - yMin)) * innerH
+
+  const yTicks = Array.from({ length: 5 }, (_, i) => yMin + ((yMax - yMin) / 4) * i)
+  const showZero = yMin < 0 && yMax > 0
+
+  const zoomAt = useCallback((factor: number, center: number) => {
+    setView((v) => {
+      const widthNow = v.end - v.start
+      const next = Math.min(1, Math.max(MIN_WINDOW, widthNow * factor))
+      const anchor = v.start + Math.min(1, Math.max(0, center)) * widthNow
+      let start = anchor - center * next
+      let end = start + next
+      if (start < 0) {
+        start = 0
+        end = next
+      }
+      if (end > 1) {
+        end = 1
+        start = 1 - next
+      }
+      return { start: Math.max(0, start), end: Math.min(1, end) }
+    })
+  }, [])
+
+  // Scroll = zoom di sekitar posisi kursor. Listener native supaya preventDefault bekerja.
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const onWheel = (event: WheelEvent) => {
+      if (!hasData) return
+      event.preventDefault()
+      const rect = el.getBoundingClientRect()
+      const center = (event.clientX - rect.left - padLeft) / Math.max(1, innerW)
+      zoomAt(event.deltaY < 0 ? 0.8 : 1.25, center)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [hasData, innerW, padLeft, zoomAt, ref])
+
+  const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (!hasData) return
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragRef.current = { x: event.clientX, start: view.start, end: view.end }
+    setDragging(true)
+  }
+
+  const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const drag = dragRef.current
+    if (!drag) return
+    const windowSize = drag.end - drag.start
+    const shift = (-(event.clientX - drag.x) / Math.max(1, innerW)) * windowSize
+    let start = drag.start + shift
+    let end = drag.end + shift
+    if (start < 0) {
+      end -= start
+      start = 0
+    }
+    if (end > 1) {
+      start -= end - 1
+      end = 1
+    }
+    setView({ start: Math.max(0, start), end: Math.min(1, end) })
+  }
+
+  const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (!dragRef.current) return
+    dragRef.current = null
+    setDragging(false)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+  }
+
+  const windowMinutes = Math.max(1, Math.round((t1 - t0) / 60_000))
 
   return (
     <section className="border border-line bg-panel">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line/70 px-3 py-2">
         <h2 className="text-[12px] font-semibold tracking-tight">Kurva ekuitas</h2>
         <span className="label text-[9px]">{label}</span>
+        <span className="num text-[9.5px] text-dim">
+          {hhmm(t0)}–{hhmm(t1)} {WIB_LABEL} · {windowMinutes >= 60 ? `${(windowMinutes / 60).toFixed(1)} j` : `${windowMinutes} m`}
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => zoomAt(0.65, 0.5)}
+            className="grid h-6 w-6 place-items-center border border-line text-[12px] leading-none text-mute hover:border-cyan/50 hover:text-cyan"
+            title="zoom in"
+            aria-label="zoom in"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => zoomAt(1 / 0.65, 0.5)}
+            className="grid h-6 w-6 place-items-center border border-line text-[12px] leading-none text-mute hover:border-cyan/50 hover:text-cyan"
+            title="zoom out"
+            aria-label="zoom out"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            onClick={() => setView({ start: 0, end: 1 })}
+            className="grid h-6 px-1.5 place-items-center border border-line text-[9px] uppercase tracking-wider text-dim hover:border-cyan/50 hover:text-cyan"
+            title="tampilkan semua data"
+          >
+            semua
+          </button>
+        </div>
         <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1">
           {series.map(({ bot, color, points }) => {
             const roi = points.length ? points[points.length - 1].value : 0
@@ -75,35 +227,66 @@ export function EquityChart({ bots, label }: EquityChartProps) {
       </div>
 
       <div ref={ref} className="relative px-0 pt-1">
-        <svg width={width} height={height} role="img" aria-label="kurva ekuitas enam model">
+        <svg
+          width={width}
+          height={height}
+          role="img"
+          aria-label="kurva ekuitas enam model, bisa di-zoom dan digeser"
+          style={{ touchAction: 'none', cursor: hasData ? (dragging ? 'grabbing' : 'grab') : 'default' }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onDoubleClick={() => setView({ start: 0, end: 1 })}
+        >
           {yTicks.map((v, i) => (
             <g key={i}>
               <line
-                x1={pad.left}
-                x2={pad.left + innerW}
+                x1={padLeft}
+                x2={padLeft + innerW}
                 y1={y(v)}
                 y2={y(v)}
-                stroke={Math.abs(v) < 1e-9 ? '#3a4048' : '#1a1e23'}
+                stroke="var(--color-line)"
                 strokeWidth="1"
-                strokeDasharray={Math.abs(v) < 1e-9 ? '3 3' : undefined}
+                strokeDasharray="3 3"
               />
-              <text x={pad.left + innerW + 6} y={y(v) + 3} fill="#5b636d" fontSize="9" fontFamily="ui-monospace, monospace">
+              <text
+                x={padLeft + innerW + 6}
+                y={y(v) + 3}
+                fill="var(--color-dim)"
+                fontSize="9"
+                fontFamily="ui-monospace, monospace"
+              >
                 {v > 0 ? '+' : ''}
                 {v.toFixed(1)}%
               </text>
             </g>
           ))}
 
-          {series.map(({ bot, color, points }) => {
+          {showZero && (
+            <line
+              x1={padLeft}
+              x2={padLeft + innerW}
+              y1={y(0)}
+              y2={y(0)}
+              stroke="var(--color-dim)"
+              strokeWidth="1"
+              strokeDasharray="2 3"
+            />
+          )}
+
+          {visible.map(({ bot, color, points }) => {
             if (points.length < 2) return null
-            const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.ts).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ')
+            const d = points
+              .map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.ts).toFixed(1)},${y(p.value).toFixed(1)}`)
+              .join(' ')
             return (
               <path
                 key={bot.id}
                 d={d}
                 fill="none"
                 stroke={color}
-                strokeWidth="1.3"
+                strokeWidth="1.4"
                 strokeLinejoin="round"
                 strokeLinecap="round"
                 opacity="0.95"
@@ -113,10 +296,10 @@ export function EquityChart({ bots, label }: EquityChartProps) {
 
           {!hasData && (
             <text
-              x={pad.left + innerW / 2}
-              y={pad.top + innerH / 2}
+              x={padLeft + innerW / 2}
+              y={padTop + innerH / 2}
               textAnchor="middle"
-              fill="#5b636d"
+              fill="var(--color-dim)"
               fontSize="10"
               fontFamily="ui-monospace, monospace"
             >
@@ -124,18 +307,18 @@ export function EquityChart({ bots, label }: EquityChartProps) {
             </text>
           )}
 
-          <text x={pad.left} y={height - 5} fill="#5b636d" fontSize="9" fontFamily="ui-monospace, monospace">
-            {hhmm(tsMin)}
+          <text x={padLeft} y={height - 5} fill="var(--color-dim)" fontSize="9" fontFamily="ui-monospace, monospace">
+            {hhmm(t0)}
           </text>
           <text
-            x={pad.left + innerW}
+            x={padLeft + innerW}
             y={height - 5}
             textAnchor="end"
-            fill="#5b636d"
+            fill="var(--color-dim)"
             fontSize="9"
             fontFamily="ui-monospace, monospace"
           >
-            {hhmm(tsMax)}
+            {hhmm(t1)} {WIB_LABEL}
           </text>
         </svg>
       </div>
@@ -148,10 +331,10 @@ function shortModel(name: string): string {
   const map: Record<string, string> = {
     'Aturan dominasi': 'Aturan',
     'Regresi Logistik': 'Logreg',
-    'XGBoost': 'XGB',
+    XGBoost: 'XGB',
     'Meta-label': 'Meta',
-    'GRU': 'GRU',
-    'Ensemble': 'Ensemble',
+    GRU: 'GRU',
+    Ensemble: 'Ensemble',
   }
   return map[name] ?? name.split(' ')[0]
 }

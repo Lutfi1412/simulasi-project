@@ -43,9 +43,21 @@ interface BotCardProps {
   busy: boolean
   onReset: (id: string) => void
   onNeutralize: (id: string) => void
+  soundOn: boolean
+  onToggleSound: () => void
 }
 
-export function BotCard({ bot, model, trading, marketPrice, busy, onReset, onNeutralize }: BotCardProps) {
+export function BotCard({
+  bot,
+  model,
+  trading,
+  marketPrice,
+  busy,
+  onReset,
+  onNeutralize,
+  soundOn,
+  onToggleSound,
+}: BotCardProps) {
   const style = kindStyle(bot.kind)
   const active = Boolean(bot.position)
   const roi = bot.roiPct
@@ -133,7 +145,7 @@ export function BotCard({ bot, model, trading, marketPrice, busy, onReset, onNeu
           <div className="flex items-center justify-between">
             <span className="num text-[10px] text-dim">
               {bot.lastSignal
-                ? `sinyal terakhir ${sideLabel(bot.lastSignal.side)} · ${hhmm(bot.lastSignal.ts)} @ ${price(bot.lastSignal.price)}`
+                ? `sinyal terakhir ${sideLabel(bot.lastSignal.side)} · ${hhmm(bot.lastSignal.ts * 1000)} WIB @ ${price(bot.lastSignal.price)}`
                 : 'belum ada sinyal'}
             </span>
             <span className="num text-[10px] text-dim">{bot.pending ? `masuk ${sideLabel(bot.pending.side)}` : ''}</span>
@@ -175,7 +187,23 @@ export function BotCard({ bot, model, trading, marketPrice, busy, onReset, onNeu
         </div>
       </div>
 
-      <div className="mt-auto flex gap-2 border-t border-line/70 px-3 py-2">
+      <div className="mt-auto flex items-center justify-between border-t border-line/70 px-3 py-1.5">
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="checkbox"
+            checked={soundOn}
+            onChange={onToggleSound}
+            className="h-3.5 w-3.5 accent-[var(--color-cyan)]"
+            aria-label={`notif suara ${bot.model}`}
+          />
+          <span className="label text-[8.5px]">notif suara</span>
+        </label>
+        <span className={`num text-[9px] ${soundOn ? 'text-cyan' : 'text-dim'}`} title="suara saat model ini memberi sinyal entri">
+          {soundOn ? 'ON' : 'OFF'}
+        </span>
+      </div>
+
+      <div className="flex gap-2 border-t border-line/70 px-3 py-2">
         <button
           type="button"
           disabled={busy || !bot.neutralizable}
