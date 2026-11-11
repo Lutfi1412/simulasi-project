@@ -8,7 +8,7 @@ import { metrics } from './metrics'
 import { LivePipeline } from './live/livePipeline'
 import { loadModelBundle, ModelRuntime } from './models/runtime'
 import { ReplaySource, type ReplayData } from './replay/replaySource'
-import { BotManager } from './sim/bot'
+import { BotManager, type Bot, type BotTrade } from './sim/bot'
 
 interface PersistedBot {
   model: string
@@ -65,6 +65,15 @@ export class SimulationRuntime {
     this.replayBots = new BotManager(modelsMeta, this.models.bundle.manifest.trading, this.models.bundle.manifest.trading.CAPITAL)
     this.live = new LivePipeline(this.models, this.liveBots)
     this.feed = new BinanceFeed(config.symbol)
+
+    const onBankrupt = (bot: Bot, trade: BotTrade | undefined) => {
+      const detail = trade ? ` · trade terakhir ${Math.round(trade.pnl).toLocaleString('id-ID')} (${trade.roiPct.toFixed(1)}%)` : ''
+      this.log(
+        'warn',
+        `${bot.modelName}: modal habis — posisi dipaksa netral, modal dikembalikan ke ${bot.capital.toLocaleString('id-ID')}, kalah +1${detail}`,
+      )
+    }
+    for (const b of [...this.liveBots.bots, ...this.replayBots.bots]) b.onBankrupt = onBankrupt
 
     this.live.onMinute = () => this.publish()
     this.live.onSignal = (market, ev) => {
@@ -185,7 +194,7 @@ export class SimulationRuntime {
     if (!bot) return false
     bot.reset(true)
     this.tradeSeen.set(bot.id, 0)
-    this.log('warn', `${bot.modelName}: saldo direset ke modal awal; kalah +1`)
+    this.log('warn', `${bot.modelName}: saldo + statistik direset ke modal awal (trade/win/kalah/dd/pf dikosongkan)`)
     this.persist()
     this.publish()
     return true

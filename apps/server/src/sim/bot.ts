@@ -1,6 +1,12 @@
 import type { MinuteContext, TradingConfig } from '../core/types'
 import type { ModelOutput } from '../models/types'
 
+/**
+ * Feed live memberi timestamp dalam milidetik, sedangkan reel/replay memakai detik.
+ * Normalisasi ke detik supaya perhitungan funding (periode 8 jam) tidak meleset 1000x.
+ */
+const asSeconds = (ts: number): number => (ts > 1e11 ? Math.floor(ts / 1000) : Math.floor(ts))
+
 export type Side = 1 | -1
 export type ExitReason = 'tp' | 'sl' | 'liq' | 'timeout' | 'end' | 'neutral'
 
@@ -57,6 +63,8 @@ export class Bot {
   losses = 0
   tpCount = 0
   liqCount = 0
+  /** Dipanggil saat modal habis (equity 0) dan bot direset otomatis. */
+  onBankrupt: ((bot: Bot, trade: BotTrade | undefined) => void) | null = null
   private seq = 0
 
   constructor(
@@ -104,7 +112,8 @@ export class Bot {
       this.pending = null
       return
     }
-    const fraction = this.equity <= 100_000 ? 1 : 0.55
+    // 50% ekuitas sebagai margin; kalau sisa modal <= 100.000, all-in sisa terakhir.
+    const fraction = this.equity <= 100_000 ? 1 : this.trading.POSITION_FRACTION
     const margin = this.equity * fraction
     const notional = margin * this.trading.LEVERAGE
     const liq = 1 / this.trading.LEVERAGE - this.trading.MMR
@@ -137,7 +146,7 @@ export class Bot {
   }
 
   private targets(p: Position, ts: number) {
-    const fundingPeriods = Math.floor(ts / 28800) - Math.floor(p.entryTs / 28800)
+    const fundingPeriods = Math.floor(asSeconds(ts) / 28800) - Math.floor(asSeconds(p.entryTs) / 28800)
     const liqMove = 1 / this.trading.LEVERAGE - this.trading.MMR
     const liqPrice = p.side === 1 ? p.entry * (1 - liqMove) : p.entry * (1 + liqMove)
     const tpPrice = this.targetPrice(p.entry, p.side, this.trading.TP_PCT, fundingPeriods)
@@ -181,8 +190,7 @@ export class Bot {
     return true
   }
 
-  reset(manual = false): void {
-    if (manual) this.losses++
+  reset(_manual = false): void {
     this.equity = this.capital
     this.peak = this.capital
     this.maxDd = 0
@@ -192,6 +200,8 @@ export class Bot {
     this.curve = []
     this.cooldownUntilMinute = -Infinity
     this.wins = 0
+    // kalah ikut dikosongkan supaya header (trade/win/kalah/dd/pf) benar-benar bersih
+    this.losses = 0
     this.tpCount = 0
     this.liqCount = 0
     this.lastSignal = null
@@ -237,7 +247,7 @@ export class Bot {
     const side = p.side
     const exitEff = exitPrice * (1 - this.trading.SLIPPAGE * side)
     const gross = side * (exitEff / p.entry - 1)
-    const fundingPeriods = Math.floor(ts / 28800) - Math.floor(p.entryTs / 28800)
+    const fundingPeriods = Math.floor(asSeconds(ts) / 28800) - Math.floor(asSeconds(p.entryTs) / 28800)
     const net = gross - 2 * this.trading.FEE_TAKER - fundingPeriods * this.trading.FUNDING_8H
     const pnl = reason === 'liq' ? -p.margin : p.margin * this.trading.LEVERAGE * net
     this.equity = Math.max(0, this.equity + pnl)
@@ -271,6 +281,29 @@ export class Bot {
     this.cooldownUntilMinute = reason === 'neutral' ? -Infinity : minute + this.trading.COOLDOWN_MIN
     this.curve.push({ ts, equity: this.equity })
     if (this.curve.length > 1440) this.curve.splice(0, this.curve.length - 1440)
+    // Modal habis: paksa netral, kembalikan modal, dan hitung satu kalah.
+    if (this.equity <= 0) this.bankrupt()
+  }
+
+  /**
+   * Modal 0 → posisi/entry dipaksa netral, modal dikembalikan ke awal, siklus baru.
+   * `losses` sengaja tidak dikosongkan: trade yang menghabiskan modal sudah menambah
+   * hitungan kalah, dan hitungan itu ikut terlihat di header sebagai "kalah".
+   */
+  private bankrupt(): void {
+    const last = this.trades[this.trades.length - 1]
+    this.equity = this.capital
+    this.peak = this.capital
+    this.maxDd = 0
+    this.position = null
+    this.pending = null
+    this.cooldownUntilMinute = -Infinity
+    this.wins = 0
+    this.tpCount = 0
+    this.liqCount = 0
+    this.trades = []
+    this.curve = []
+    this.onBankrupt?.(this, last)
   }
 
   /** Catat titik ekuitas berkala untuk grafik. */

@@ -162,7 +162,7 @@ export default function App() {
                   marketPrice={market.price}
                   busy={busy}
                   onReset={(id) => {
-                    if (window.confirm(`Reset ${bot.model} ke modal awal 1.000.000? Riwayat trade model ini akan dihapus dan kalah bertambah 1.`)) {
+                    if (window.confirm(`Reset ${bot.model} ke modal awal 1.000.000? Riwayat trade dan statistik (trade/win/kalah/dd/pf) model ini akan dikosongkan.`)) {
                       void post('/api/bots/reset-one', { id })
                     }
                   }}
@@ -184,7 +184,7 @@ export default function App() {
           trading={trading}
           busy={busy}
           onReset={() => {
-            if (window.confirm(`Reset semua model ${mode === 'replay' ? 'replay' : 'live'} ke modal awal? Riwayat trade dihapus dan kalah bertambah 1 untuk setiap model.`)) {
+            if (window.confirm(`Reset semua model ${mode === 'replay' ? 'replay' : 'live'} ke modal awal? Riwayat trade dan statistik (trade/win/kalah/dd/pf) semua model dikosongkan.`)) {
               void post('/api/bots/reset')
             }
           }}
