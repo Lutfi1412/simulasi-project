@@ -14,7 +14,6 @@ apps/server/data/signals/
 apps/server/data/state/
 # salinan lama replay/golden di bundel model (kode memakai apps/server/data/replay)
 apps/server/models/current/data/
-
 # bundel model lama
 apps/server/models/backup-*
 
