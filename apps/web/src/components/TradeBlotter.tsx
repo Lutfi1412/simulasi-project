@@ -124,7 +124,7 @@ export function TradeBlotter({ trades, trading, busy, onReset }: TradeBlotterPro
         <span className="num text-[10px] text-dim">
           fee {trading.FEE_TAKER * 100}% · slippage {trading.SLIPPAGE * 100}% · funding {trading.FUNDING_8H * 100}%/8j
         </span>
-        <span className="num ml-auto text-[10px] text-dim">margin penuh {trading.POSITION_FRACTION * 100}% ekuitas</span>
+        <span className="num ml-auto text-[10px] text-dim">margin 55% ekuitas · 100% jika saldo ≤100.000</span>
       </div>
     </section>
   )

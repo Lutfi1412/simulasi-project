@@ -87,4 +87,5 @@ export const reasonLabel: Record<string, string> = {
   liq: 'LIKUIDASI',
   timeout: 'WAKTU',
   end: 'AKHIR DATA',
+  neutral: 'NETRAL',
 }

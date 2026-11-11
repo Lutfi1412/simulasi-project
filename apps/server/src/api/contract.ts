@@ -6,7 +6,7 @@
 
 export type Mode = 'live' | 'replay'
 export type Side = 1 | -1
-export type ExitReason = 'tp' | 'sl' | 'liq' | 'timeout' | 'end'
+export type ExitReason = 'tp' | 'sl' | 'liq' | 'timeout' | 'end' | 'neutral'
 
 export interface TradingView {
   LEVERAGE: number
@@ -36,6 +36,7 @@ export interface PositionView {
 export interface BotStatsView {
   trades: number
   winRate: number
+  losses: number
   tpRate: number
   liqCount: number
   maxDdPct: number
@@ -47,6 +48,7 @@ export interface BotView {
   model: string
   kind: string
   capital: number
+  neutralizable: boolean
   equity: number
   effectiveEquity: number
   roiPct: number

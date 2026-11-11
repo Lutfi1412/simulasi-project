@@ -2,7 +2,7 @@ import type { MinuteContext, TradingConfig } from '../core/types'
 import type { ModelOutput } from '../models/types'
 
 export type Side = 1 | -1
-export type ExitReason = 'tp' | 'sl' | 'liq' | 'timeout' | 'end'
+export type ExitReason = 'tp' | 'sl' | 'liq' | 'timeout' | 'end' | 'neutral'
 
 export interface Position {
   side: Side
@@ -42,15 +42,6 @@ export interface EquityPoint {
   equity: number
 }
 
-/**
- * Satu bot = satu model. Aturan eksekusi disalin dari `simulate()` di notebook:
- * - margin = ekuitas x POSITION_FRACTION, nilai posisi = margin x leverage
- * - TP/SL di harga (persen gerak harga), likuidasi bila gerak berlawanan > 1/lev - MMR
- * - biaya 2 x (fee + slippage) per transaksi + funding tiap 8 jam
- * - stop didahulukan daripada target bila keduanya tersentuh di periode yang sama
- * - jeda COOLDOWN_MIN menit setelah keluar sebelum boleh masuk lagi
- * - modal bergulir (compounding)
- */
 export class Bot {
   equity: number
   peak: number
@@ -63,6 +54,7 @@ export class Bot {
   lastSignal: { side: Side; ts: number; price: number; p: number[] } | null = null
   lastPrice = 0
   wins = 0
+  losses = 0
   tpCount = 0
   liqCount = 0
   private seq = 0
@@ -112,13 +104,12 @@ export class Bot {
       this.pending = null
       return
     }
-    const margin = this.equity * this.trading.POSITION_FRACTION
+    const fraction = this.equity <= 100_000 ? 1 : 0.55
+    const margin = this.equity * fraction
     const notional = margin * this.trading.LEVERAGE
-    const tp = this.trading.TP_PCT / 100
-    const sl = this.trading.SL_PCT / 100
     const liq = 1 / this.trading.LEVERAGE - this.trading.MMR
-    const tpPrice = side === 1 ? entry * (1 + tp) : entry * (1 - tp)
-    const slPrice = side === 1 ? entry * (1 - sl) : entry * (1 + sl)
+    const tpPrice = this.targetPrice(entry, side, this.trading.TP_PCT, 0)
+    const slPrice = this.targetPrice(entry, side, -this.trading.SL_PCT, 0)
     const liqPrice = side === 1 ? entry * (1 - liq) : entry * (1 + liq)
     const stopPrice = side === 1 ? Math.max(slPrice, liqPrice) : Math.min(slPrice, liqPrice)
     this.position = {
@@ -138,18 +129,73 @@ export class Bot {
     this.lastPrice = price
   }
 
+  private targetPrice(entry: number, side: Side, roiPct: number, fundingPeriods: number): number {
+    const net = roiPct / (100 * this.trading.LEVERAGE)
+      + 2 * this.trading.FEE_TAKER
+      + fundingPeriods * this.trading.FUNDING_8H
+    return entry * (1 + side * net) / (1 - this.trading.SLIPPAGE * side)
+  }
+
+  private targets(p: Position, ts: number) {
+    const fundingPeriods = Math.floor(ts / 28800) - Math.floor(p.entryTs / 28800)
+    const liqMove = 1 / this.trading.LEVERAGE - this.trading.MMR
+    const liqPrice = p.side === 1 ? p.entry * (1 - liqMove) : p.entry * (1 + liqMove)
+    const tpPrice = this.targetPrice(p.entry, p.side, this.trading.TP_PCT, fundingPeriods)
+    const slPrice = this.targetPrice(p.entry, p.side, -this.trading.SL_PCT, fundingPeriods)
+    return {
+      tpPrice,
+      slPrice,
+      liqPrice,
+      stopPrice: p.side === 1 ? Math.max(slPrice, liqPrice) : Math.min(slPrice, liqPrice),
+      stopReason: p.side === 1 ? (slPrice >= liqPrice ? 'sl' : 'liq') as 'sl' | 'liq' : (slPrice <= liqPrice ? 'sl' : 'liq') as 'sl' | 'liq',
+    }
+  }
+
+  targetPrices(ts: number): { tpPrice: number; slPrice: number } | null {
+    if (!this.position) return null
+    const { tpPrice, slPrice } = this.targets(this.position, ts)
+    return { tpPrice, slPrice }
+  }
+
   /** Cek TP/SL dari satu harga (mode live, tiap transaksi). */
   onPrice(price: number, ts: number, minute: number): void {
     this.lastPrice = price
     const p = this.position
     if (!p) return
+    const targets = this.targets(p, ts)
     if (p.side === 1) {
-      if (price <= p.stopPrice) return this.close(p.stopPrice, ts, minute, p.stopReason)
-      if (price >= p.tpPrice) return this.close(p.tpPrice, ts, minute, 'tp')
+      if (price <= targets.stopPrice) return this.close(targets.stopPrice, ts, minute, targets.stopReason)
+      if (price >= targets.tpPrice) return this.close(targets.tpPrice, ts, minute, 'tp')
     } else {
-      if (price >= p.stopPrice) return this.close(p.stopPrice, ts, minute, p.stopReason)
-      if (price <= p.tpPrice) return this.close(p.tpPrice, ts, minute, 'tp')
+      if (price >= targets.stopPrice) return this.close(targets.stopPrice, ts, minute, targets.stopReason)
+      if (price <= targets.tpPrice) return this.close(targets.tpPrice, ts, minute, 'tp')
     }
+  }
+
+  neutralize(price: number, ts: number, minute: number): boolean {
+    if (!this.position && !this.pending) return false
+    if (this.position && (!Number.isFinite(price) || price <= 0)) return false
+    this.pending = null
+    if (this.position) this.close(price, ts, minute, 'neutral')
+    this.cooldownUntilMinute = -Infinity
+    return true
+  }
+
+  reset(manual = false): void {
+    if (manual) this.losses++
+    this.equity = this.capital
+    this.peak = this.capital
+    this.maxDd = 0
+    this.position = null
+    this.pending = null
+    this.trades = []
+    this.curve = []
+    this.cooldownUntilMinute = -Infinity
+    this.wins = 0
+    this.tpCount = 0
+    this.liqCount = 0
+    this.lastSignal = null
+    this.lastPrice = 0
   }
 
   /**
@@ -160,12 +206,13 @@ export class Bot {
     const p = this.position
     if (!p) return
     p.bars++
+    const targets = this.targets(p, ts)
     if (p.side === 1) {
-      if (bar.low <= p.stopPrice) return this.close(p.stopPrice, ts, minute, p.stopReason)
-      if (bar.high >= p.tpPrice) return this.close(p.tpPrice, ts, minute, 'tp')
+      if (bar.low <= targets.stopPrice) return this.close(targets.stopPrice, ts, minute, targets.stopReason)
+      if (bar.high >= targets.tpPrice) return this.close(targets.tpPrice, ts, minute, 'tp')
     } else {
-      if (bar.high >= p.stopPrice) return this.close(p.stopPrice, ts, minute, p.stopReason)
-      if (bar.low <= p.tpPrice) return this.close(p.tpPrice, ts, minute, 'tp')
+      if (bar.high >= targets.stopPrice) return this.close(targets.stopPrice, ts, minute, targets.stopReason)
+      if (bar.low <= targets.tpPrice) return this.close(targets.tpPrice, ts, minute, 'tp')
     }
     this.lastPrice = bar.close
     // Notebook: sinyal di akhir menit t, masuk di open t+1, waktu habis di tutup menit t+HORIZON.
@@ -217,10 +264,11 @@ export class Bot {
     this.trades.push(trade)
     if (this.trades.length > 4000) this.trades.splice(0, this.trades.length - 4000)
     if (pnl > 0) this.wins++
+    if (pnl < 0) this.losses++
     if (reason === 'tp') this.tpCount++
     if (reason === 'liq') this.liqCount++
     this.position = null
-    this.cooldownUntilMinute = minute + this.trading.COOLDOWN_MIN
+    this.cooldownUntilMinute = reason === 'neutral' ? -Infinity : minute + this.trading.COOLDOWN_MIN
     this.curve.push({ ts, equity: this.equity })
     if (this.curve.length > 1440) this.curve.splice(0, this.curve.length - 1440)
   }
@@ -236,22 +284,6 @@ export class Bot {
     if (this.curve.length > 1440) this.curve.splice(0, this.curve.length - 1440)
   }
 
-  reset(): void {
-    this.equity = this.capital
-    this.peak = this.capital
-    this.maxDd = 0
-    this.position = null
-    this.pending = null
-    this.trades = []
-    this.curve = []
-    this.cooldownUntilMinute = -Infinity
-    this.wins = 0
-    this.tpCount = 0
-    this.liqCount = 0
-    this.lastSignal = null
-    this.lastPrice = 0
-  }
-
   stats() {
     const n = this.trades.length
     const winRate = n ? (this.wins / n) * 100 : 0
@@ -261,6 +293,7 @@ export class Bot {
     return {
       trades: n,
       winRate,
+      losses: this.losses,
       tpRate: n ? (tps / n) * 100 : 0,
       liqCount: this.liqCount,
       maxDdPct: this.maxDd * 100,
@@ -294,9 +327,13 @@ export class BotManager {
     return this.bots.find((b) => b.modelName === name)
   }
 
-  /** Kembalikan semua bot ke modal awal (dipakai tombol reset & awal replay). */
-  reset(): void {
-    for (const bot of this.bots) bot.reset()
+  botForId(id: string): Bot | undefined {
+    return this.bots.find((b) => b.id === id)
+  }
+
+  /** Kembalikan semua bot ke modal awal (dipakai awal replay). */
+  reset(manual = false): void {
+    for (const bot of this.bots) bot.reset(manual)
     this.recentSignals = []
     this.lastOutputs = []
     this.lastContext = null

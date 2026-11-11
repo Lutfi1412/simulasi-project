@@ -158,6 +158,14 @@ export function startServer(runtime: SimulationRuntime) {
           return json({ ok: true })
         }
 
+        if (pathname === '/api/bots/reset-one' || pathname === '/api/bots/neutral') {
+          const id = typeof body.id === 'string' ? body.id : ''
+          if (!id) return json({ error: 'id bot wajib diisi' }, 400)
+          const ok = pathname.endsWith('/reset-one') ? runtime.resetBot(id) : runtime.neutralizeBot(id)
+          if (!ok) return json({ error: 'bot tidak ditemukan' }, 404)
+          return json({ ok: true })
+        }
+
         if (pathname === '/api/feed/reconnect') {
           runtime.restartFeed()
           return json({ ok: true })

@@ -40,9 +40,12 @@ interface BotCardProps {
   model: ModelView | undefined
   trading: TradingView
   marketPrice: number
+  busy: boolean
+  onReset: (id: string) => void
+  onNeutralize: (id: string) => void
 }
 
-export function BotCard({ bot, model, trading, marketPrice }: BotCardProps) {
+export function BotCard({ bot, model, trading, marketPrice, busy, onReset, onNeutralize }: BotCardProps) {
   const style = kindStyle(bot.kind)
   const active = Boolean(bot.position)
   const roi = bot.roiPct
@@ -114,9 +117,12 @@ export function BotCard({ bot, model, trading, marketPrice }: BotCardProps) {
                 style={{ width: `${barPct}%` }}
               />
             </div>
-            <div className="mt-1.5 flex items-center justify-between">
-              <span className="num text-[10px] text-dim">
-                tp {price(bot.position.tp)} · sl {price(bot.position.sl)}
+            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+              <span className="num text-[9px] text-dim">
+                TP +{trading.TP_PCT}% ROI · {price(bot.position.tp)}
+              </span>
+              <span className="num text-[9px] text-dim">
+                SL −{trading.SL_PCT}% ROI · {price(bot.position.sl)}
               </span>
               <span className="num text-[10px] text-dim">
                 margin {compact(bot.position.margin)} · notional {compact(bot.position.notional)}
@@ -135,10 +141,11 @@ export function BotCard({ bot, model, trading, marketPrice }: BotCardProps) {
         )}
       </div>
 
-      <div className="grid grid-cols-4 gap-px border-t border-line/70 bg-line/60">
+      <div className="grid grid-cols-5 gap-px border-t border-line/70 bg-line/60">
         {[
           ['trade', String(bot.stats.trades)],
           ['win', `${bot.stats.winRate.toFixed(0)}%`],
+          ['kalah', String(bot.stats.losses)],
           ['dd', `${bot.stats.maxDdPct.toFixed(1)}%`],
           ['pf', bot.stats.profitFactor >= 999 ? '∞' : bot.stats.profitFactor.toFixed(2)],
         ].map(([label, value]) => (
@@ -166,6 +173,27 @@ export function BotCard({ bot, model, trading, marketPrice }: BotCardProps) {
           <span className="num text-[9px] text-long">long {prob(p[1])}</span>
           <span className="num text-[9px] text-short">short {prob(p[2])}</span>
         </div>
+      </div>
+
+      <div className="mt-auto flex gap-2 border-t border-line/70 px-3 py-2">
+        <button
+          type="button"
+          disabled={busy || !bot.neutralizable}
+          onClick={() => onNeutralize(bot.id)}
+          className="min-h-10 flex-1 border border-line px-2 text-[10px] font-semibold text-mute hover:border-amber/50 hover:text-amber focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+          title={bot.neutralizable ? 'Tutup posisi atau batalkan entry tertunda' : 'Tidak ada posisi atau entry tertunda'}
+        >
+          Netral
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onReset(bot.id)}
+          className="min-h-10 flex-1 border border-line px-2 text-[10px] font-semibold text-dim hover:border-short/50 hover:text-short focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+          title={`Reset saldo ${bot.model} ke modal awal`}
+        >
+          Reset
+        </button>
       </div>
     </article>
   )

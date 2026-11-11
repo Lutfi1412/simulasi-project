@@ -16,6 +16,7 @@ interface PersistedBot {
   peak: number
   maxDd: number
   wins: number
+  losses?: number
   tpCount: number
   liqCount: number
   cooldownUntilMinute: number
@@ -30,6 +31,7 @@ interface PersistedState {
   savedAt: number
   enabled: boolean
   bots: PersistedBot[]
+  replayLosses?: { model: string; losses: number }[]
 }
 
 /**
@@ -170,11 +172,38 @@ export class SimulationRuntime {
 
   resetBots(target: Mode = this.mode): void {
     const mgr = target === 'replay' ? this.replayBots : this.liveBots
-    mgr.reset()
+    mgr.reset(true)
     this.tradeSeen.clear()
     this.log('warn', target === 'replay' ? 'simulasi replay direset ke modal awal' : 'simulasi live direset ke modal awal')
     this.persist()
     this.publish()
+  }
+
+  resetBot(id: string): boolean {
+    const mgr = this.manager()
+    const bot = mgr.botForId(id) ?? mgr.botForModel(id)
+    if (!bot) return false
+    bot.reset(true)
+    this.tradeSeen.set(bot.id, 0)
+    this.log('warn', `${bot.modelName}: saldo direset ke modal awal; kalah +1`)
+    this.persist()
+    this.publish()
+    return true
+  }
+
+  neutralizeBot(id: string): boolean {
+    const mgr = this.manager()
+    const bot = mgr.botForId(id) ?? mgr.botForModel(id)
+    if (!bot) return false
+    const price = this.mode === 'replay' ? this.replay?.currentPrice ?? 0 : this.live.lastPrice || this.ticker.price || this.feed.getStatus().future.lastPrice
+    const ts = this.mode === 'replay' ? this.replay?.status.currentTs ?? Math.floor(Date.now() / 1000) : Math.floor(Date.now() / 1000)
+    const currentMinute = this.mode === 'replay' ? this.replay?.status.index ?? 0 : Math.floor(ts / 60)
+    const minute = Math.max(currentMinute, bot.position?.entryMinute ?? bot.pending?.minute ?? 0)
+    if (!bot.neutralize(price, ts, minute)) return false
+    this.log('info', `${bot.modelName}: posisi dipaksa netral`)
+    this.persist()
+    this.publish()
+    return true
   }
 
   reloadModels(): { version: number; models: number } {
@@ -333,6 +362,7 @@ export class SimulationRuntime {
     const manifest = this.models.bundle.manifest
     const outputs = mgr.lastOutputs
     const replayPrice = mode === 'replay' ? (this.replay?.currentPrice ?? 0) : 0
+    const targetTs = mode === 'replay' ? this.replay?.status.currentTs ?? Math.floor(Date.now() / 1000) : Math.floor(Date.now() / 1000)
     const price =
       mode === 'replay'
         ? replayPrice || this.live.lastPrice
@@ -401,6 +431,7 @@ export class SimulationRuntime {
         model: b.modelName,
         kind: b.kind,
         capital: b.capital,
+        neutralizable: Boolean(b.position || b.pending),
         equity: b.equity,
         effectiveEquity: b.effectiveEquity,
         roiPct: b.roiPct,
@@ -412,8 +443,8 @@ export class SimulationRuntime {
               ts: b.position.entryTs,
               margin: b.position.margin,
               notional: b.position.notional,
-              tp: b.position.tpPrice,
-              sl: b.position.slPrice,
+              tp: b.targetPrices(targetTs)?.tpPrice ?? b.position.tpPrice,
+              sl: b.targetPrices(targetTs)?.slPrice ?? b.position.slPrice,
               bars: b.position.bars,
             }
           : null,
@@ -466,12 +497,14 @@ export class SimulationRuntime {
       const state: PersistedState = {
         savedAt: Date.now(),
         enabled: this.enabled,
+        replayLosses: this.replayBots.bots.map((b) => ({ model: b.modelName, losses: b.losses })),
         bots: this.liveBots.bots.map((b) => ({
           model: b.modelName,
           equity: b.equity,
           peak: b.peak,
           maxDd: b.maxDd,
           wins: b.wins,
+          losses: b.losses,
           tpCount: b.tpCount,
           liqCount: b.liqCount,
           cooldownUntilMinute: b.cooldownUntilMinute,
@@ -508,9 +541,14 @@ export class SimulationRuntime {
         bot.pending = (saved.pending as typeof bot.pending) ?? null
         bot.lastSignal = (saved.lastSignal as typeof bot.lastSignal) ?? null
         bot.trades = (saved.trades as typeof bot.trades) ?? []
+        bot.losses = saved.losses ?? bot.trades.filter((t) => t.pnl < 0).length
         bot.curve = saved.curve ?? []
         this.tradeSeen.set(bot.id, bot.trades.length)
         restored++
+      }
+      for (const saved of state.replayLosses ?? []) {
+        const bot = this.replayBots.botForModel(saved.model)
+        if (bot) bot.losses = saved.losses
       }
       this.enabled = state.enabled
       this.liveBots.entriesEnabled = state.enabled

@@ -144,7 +144,7 @@ export function StatusStrip({ snapshot, busy, onReplay }: StatusStripProps) {
           )}
           <MetaItem label="modal" value={`${money(trading.CAPITAL)} / bot`} />
           <MetaItem label="lev" value={`${trading.LEVERAGE}×`} />
-          <MetaItem label="tp/sl" value={`${trading.TP_PCT}% / ${trading.SL_PCT}%`} />
+          <MetaItem label="tp/sl roi" value={`+${trading.TP_PCT}% / −${trading.SL_PCT}%`} />
           <MetaItem label="horizon" value={spanMinutes(trading.HORIZON_MIN)} />
           <MetaItem label="jeda" value={`${trading.COOLDOWN_MIN} mnt`} />
           <MetaItem label="model" value={`v${live.modelVersion}`} />
