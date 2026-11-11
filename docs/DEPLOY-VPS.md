@@ -80,8 +80,10 @@ di-restart** — restart tunnel akan mengganti URL.
 ### Catatan penting
 
 1. **Data runtime jangan pernah dihapus.** `data/minutes` adalah histori menit yang dipakai
-   pemanasan 305 menit (per 11 Nov 2026 ±2.739 menit data terekam, ±1.800 menit histori
-   menyambung). `data/state` menyimpan posisi/trade ekuitas bot.
+   pemanasan 305 menit. Saat update 11 Nov 2026 data mentah berisi 2.802 baris futures /
+   2.735 spot (±2.739 menit rentang); setelah boot kode baru memuat 2.000 baris terakhir dan
+   memadatkan file, menyisakan **1.810 menit histori menyambung** (`historyMinutes`) — tetap
+   jauh di atas 305 dan `ready=true`. `data/state` menyimpan posisi/trade ekuitas bot.
 2. **VPS ini tidak punya IPv6 global.** Wajib `--edge-ip-version 4` pada cloudflared, kalau
    tidak tunnel gagal daftar (`Register tunnel error ... context deadline exceeded`).
 3. **URL quick tunnel berubah setiap cloudflared restart/reboot.** Bukan bug. Pakai
@@ -165,8 +167,9 @@ Yang perlu diperhatikan:
   langkah 3 (build di lokal lalu kirim hasilnya). Untuk runtime sendiri, aplikasi ringan:
   buffer 900 menit × 40 fitur hanya beberapa MB.
 - **Disk.** Minimal 1 GB bebas; proyek ±50 MB (model 9,6 MB + data replay 8,9 MB). Data
-  runtime kecil: `minutes` ±0,3 MB/hari dan dipadatkan ke 6000 baris setiap boot, `signals`
-  menyimpan 26 jam terakhir — tidak tumbuh tanpa batas.
+  runtime kecil: `minutes` ±0,3 MB/hari. Saat boot `MinuteStore` memuat **2000 baris
+  terakhir** lalu memadatkan file ke jendela itu (jauh di atas 305 menit yang dibutuhkan),
+  `signals` menyimpan 26 jam terakhir — tidak tumbuh tanpa batas.
 - **Port 8080/8090.** Kalau 8080 listen, itu `futures-signal` — biarkan.
 - **Jam.** `timedatectl` harus sinkron (`System clock synchronized: yes`). Jam VPS yang
   meleset membuat bar menit tidak cocok dengan Binance.
