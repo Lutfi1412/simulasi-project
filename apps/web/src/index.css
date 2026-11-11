@@ -21,24 +21,26 @@
 }
 
 /*
- * Tema. `gelap` = palet bawaan (di @theme). `malam` = hitam lebih pekat.
- * Nilai di bawah menimpa variabel @theme karena selektornya lebih spesifik.
+ * Tema. `gelap` = palet bawaan (di @theme). `terang` = latar terang untuk
+ * pemakaian siang hari. Nilai di bawah menimpa variabel @theme karena
+ * selektornya lebih spesifik.
  */
-html[data-theme='malam'] {
-  --color-shell: #010203;
-  --color-panel: #05070a;
-  --color-raise: #0b0f14;
-  --color-line: #1a1f27;
-  --color-ink: #e2ebf5;
-  --color-mute: #808b99;
-  --color-dim: #4f5866;
-  --color-long: #2fd884;
-  --color-short: #ff5d68;
-  --color-amber: #e6ad2f;
-  --color-cyan: #34d3df;
-  --color-violet: #ad80ff;
-  --color-pink: #ff7fc6;
-  --color-blue: #66b3ff;
+html[data-theme='terang'] {
+  color-scheme: light;
+  --color-shell: #eef1f5;
+  --color-panel: #ffffff;
+  --color-raise: #e8edf3;
+  --color-line: #cfd8e3;
+  --color-ink: #0f172a;
+  --color-mute: #475569;
+  --color-dim: #64748b;
+  --color-long: #0f8a4d;
+  --color-short: #d92d20;
+  --color-amber: #a15c00;
+  --color-cyan: #0b7285;
+  --color-violet: #6d28d9;
+  --color-pink: #c0248b;
+  --color-blue: #1d4ed8;
 }
 
 html {

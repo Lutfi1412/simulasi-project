@@ -48,6 +48,23 @@ export interface EquityPoint {
   equity: number
 }
 
+/**
+ * Buang titik kurva yang terlalu rapat (mis. sisa sampling lama yang mencatat
+ * tiap tick). Dipakai saat state dipulihkan supaya jendela 120 titik benar-benar
+ * mencakup rentang waktu panjang, bukan menumpuk di beberapa menit terakhir.
+ */
+export function compactCurve(points: EquityPoint[], minGapMs = 60_000): EquityPoint[] {
+  if (points.length < 2) return points
+  const out: EquityPoint[] = [points[0]]
+  for (let i = 1; i < points.length; i++) {
+    const point = points[i]
+    const last = out[out.length - 1]
+    const gap = last.ts > 1e11 ? minGapMs : minGapMs / 1000
+    if (Math.abs(point.ts - last.ts) >= gap) out.push(point)
+  }
+  return out
+}
+
 export class Bot {
   equity: number
   peak: number
@@ -312,9 +329,13 @@ export class Bot {
   /** Catat titik ekuitas berkala untuk grafik. */
   sample(minute: number, ts: number, price: number): void {
     this.lastPrice = price
-    if (this.trades.length && this.curve.length) {
+    // Live memakai milidetik, replay memakai detik. Ambil satu titik tiap ~5 menit
+    // data untuk SEMUA bot; dulu bot tanpa trade lolos dari jeda ini sehingga
+    // mencatat tiap tick dan kurvanya hanya mencakup beberapa menit terakhir.
+    const gap = ts > 1e11 ? 300_000 : 300
+    if (this.curve.length) {
       const last = this.curve[this.curve.length - 1]
-      if (ts - last.ts < 300_000) return
+      if (Math.abs(ts - last.ts) < gap) return
     }
     this.curve.push({ ts, equity: this.effectiveEquity })
     if (this.curve.length > 1440) this.curve.splice(0, this.curve.length - 1440)

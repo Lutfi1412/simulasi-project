@@ -8,7 +8,7 @@ import { metrics } from './metrics'
 import { LivePipeline } from './live/livePipeline'
 import { loadModelBundle, ModelRuntime } from './models/runtime'
 import { ReplaySource, type ReplayData } from './replay/replaySource'
-import { BotManager, type Bot, type BotTrade } from './sim/bot'
+import { BotManager, compactCurve, type Bot, type BotTrade } from './sim/bot'
 
 interface PersistedBot {
   model: string
@@ -551,7 +551,7 @@ export class SimulationRuntime {
         bot.lastSignal = (saved.lastSignal as typeof bot.lastSignal) ?? null
         bot.trades = (saved.trades as typeof bot.trades) ?? []
         bot.losses = saved.losses ?? bot.trades.filter((t) => t.pnl < 0).length
-        bot.curve = saved.curve ?? []
+        bot.curve = saved.curve ? compactCurve(saved.curve) : []
         this.tradeSeen.set(bot.id, bot.trades.length)
         restored++
       }

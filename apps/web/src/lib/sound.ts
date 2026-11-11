@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { Snapshot } from '../../../server/src/api/contract'
 
 const KEY = 'sim-sound-models'
+const NOTIF_SRC = '/notif.mp3'
 
 /** Model mana saja yang bersuara saat sinyal masuk (disimpan di browser). */
 export function loadSoundModels(): Record<string, boolean> {
@@ -60,8 +61,68 @@ export function cancelSpeech(): void {
   if (speechSupported()) window.speechSynthesis.cancel()
 }
 
+// Satu elemen audio dipakai ulang supaya file notif tidak diunduh berulang.
+let notifEl: HTMLAudioElement | null = null
+
+function notifAudio(): HTMLAudioElement | null {
+  if (typeof window === 'undefined' || typeof Audio === 'undefined') return null
+  if (!notifEl) {
+    notifEl = new Audio(NOTIF_SRC)
+    notifEl.preload = 'auto'
+    notifEl.volume = 0.9
+  }
+  return notifEl
+}
+
+/**
+ * Buka izin autoplay browser. Panggil dari aksi pengguna (toggle ON / tes suara),
+ * karena browser memblokir suara yang diputar tanpa interaksi.
+ */
+export function primeAudio(): void {
+  const el = notifAudio()
+  if (!el) return
+  el.muted = true
+  const played = el.play()
+  if (played && typeof played.then === 'function') {
+    played
+      .then(() => {
+        el.pause()
+        el.currentTime = 0
+        el.muted = false
+      })
+      .catch(() => {
+        el.muted = false
+      })
+  }
+}
+
+/** Bunyikan notif.mp3 (nada pemberitahuan). */
+export function playNotif(): void {
+  const el = notifAudio()
+  if (!el) return
+  try {
+    el.currentTime = 0
+    const played = el.play()
+    if (played && typeof played.catch === 'function') void played.catch(() => {})
+  } catch {
+    /* autoplay diblokir browser — suara akan berbunyi setelah ada interaksi */
+  }
+}
+
 export function signalText(side: 1 | -1, model: string): string {
   return `sinyal ${side === 1 ? 'long' : 'short'} dari model ${model}`
+}
+
+/** Notifikasi lengkap: notif.mp3 + ucapan sinyal (diulang beberapa kali). */
+export function alertSignal(side: 1 | -1, model: string, repeat = 3): boolean {
+  playNotif()
+  return speak(signalText(side, model), repeat)
+}
+
+/** Tes suara dari topbar: memutar notif.mp3 lalu contoh ucapan sinyal. */
+export function testAlert(): boolean {
+  playNotif()
+  return speak('tes suara notifikasi sinyal, sinyal long dari model meta label', 1)
 }
 
 /**
@@ -91,10 +152,10 @@ export function useSignalSound(snapshot: Snapshot | null, enabled: Record<string
     }
     if (!fresh.length) return
 
-    // list terbaru di depan; bacakan dari yang paling lama supaya urutannya wajar
+    // list terbaru di depan; bunyikan dari yang paling lama supaya urutannya wajar
     for (const s of fresh.reverse()) {
       if (!enabled[s.model]) continue
-      speak(signalText(s.side, s.model), 3)
+      alertSignal(s.side, s.model, 3)
     }
   }, [snapshot, enabled])
 }

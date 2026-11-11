@@ -1,10 +1,13 @@
-export type Theme = 'gelap' | 'malam'
+export type Theme = 'gelap' | 'terang'
 
 const KEY = 'sim-theme'
 
 export function loadTheme(): Theme {
   try {
-    return localStorage.getItem(KEY) === 'malam' ? 'malam' : 'gelap'
+    const saved = localStorage.getItem(KEY)
+    // 'malam' adalah nilai tema lama; sekarang diganti pasangan gelap/terang.
+    if (saved === 'terang') return 'terang'
+    return 'gelap'
   } catch {
     return 'gelap'
   }

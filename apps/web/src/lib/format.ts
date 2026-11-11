@@ -72,16 +72,16 @@ export interface KindStyle {
 }
 
 export const KIND_STYLE: Record<string, KindStyle> = {
-  rule: { label: 'RULE', chip: 'text-amber border-amber/40 bg-amber/10', hex: '#d29922' },
-  logreg: { label: 'LOGREG', chip: 'text-blue border-blue/40 bg-blue/10', hex: '#58a6ff' },
-  xgb: { label: 'XGB', chip: 'text-violet border-violet/40 bg-violet/10', hex: '#a371f7' },
-  meta: { label: 'META', chip: 'text-cyan border-cyan/40 bg-cyan/10', hex: '#39c5cf' },
-  gru: { label: 'GRU', chip: 'text-pink border-pink/40 bg-pink/10', hex: '#f778ba' },
-  ensemble: { label: 'ENSEMBLE', chip: 'text-long border-long/40 bg-long/10', hex: '#3fb950' },
+  rule: { label: 'RULE', chip: 'text-amber border-amber/40 bg-amber/10', hex: 'var(--color-amber)' },
+  logreg: { label: 'LOGREG', chip: 'text-blue border-blue/40 bg-blue/10', hex: 'var(--color-blue)' },
+  xgb: { label: 'XGB', chip: 'text-violet border-violet/40 bg-violet/10', hex: 'var(--color-violet)' },
+  meta: { label: 'META', chip: 'text-cyan border-cyan/40 bg-cyan/10', hex: 'var(--color-cyan)' },
+  gru: { label: 'GRU', chip: 'text-pink border-pink/40 bg-pink/10', hex: 'var(--color-pink)' },
+  ensemble: { label: 'ENSEMBLE', chip: 'text-long border-long/40 bg-long/10', hex: 'var(--color-long)' },
 }
 
 export const kindStyle = (kind: string): KindStyle =>
-  KIND_STYLE[kind] ?? { label: kind.toUpperCase(), chip: 'text-mute border-line bg-raise', hex: '#8b949e' }
+  KIND_STYLE[kind] ?? { label: kind.toUpperCase(), chip: 'text-mute border-line bg-raise', hex: 'var(--color-mute)' }
 
 export const sideLabel = (side: number): string => (side === 1 ? 'LONG' : side === -1 ? 'SHORT' : 'NETRAL')
 

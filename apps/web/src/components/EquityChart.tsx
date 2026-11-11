@@ -79,10 +79,18 @@ export function EquityChart({ bots, label }: EquityChartProps) {
   const t0 = fullMin + view.start * fullSpan
   const t1 = fullMin + view.end * fullSpan
 
-  const visible = series.map((s) => ({
-    ...s,
-    points: s.points.filter((p) => p.ts >= t0 && p.ts <= t1),
-  }))
+  const visible = series.map((s) => {
+    const inside = s.points.filter((p) => p.ts >= t0 && p.ts <= t1)
+    if (inside.length === 0) return { ...s, points: [] as { ts: number; value: number }[] }
+    // Setiap garis ditarik sampai tepi jendela memakai nilai terdekat. Tanpa ini,
+    // model yang baru mulai (atau baru direset) hanya tampil sebagai segmen pendek
+    // di ujung kanan, sementara sumbu X mengikuti model dengan histori terpanjang.
+    const points: { ts: number; value: number }[] = [...inside]
+    if (inside[0].ts > t0) points.unshift({ ts: t0, value: inside[0].value })
+    const last = inside[inside.length - 1]
+    if (last.ts < t1) points.push({ ts: t1, value: last.value })
+    return { ...s, points }
+  })
   const visibleValues = visible.flatMap((s) => s.points.map((p) => p.value))
 
   let yMin = -1

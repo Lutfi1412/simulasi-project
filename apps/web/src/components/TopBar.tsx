@@ -67,7 +67,7 @@ export function TopBar({
   const change = market.changePct
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-shell/95 backdrop-blur-sm">
-      <div className="mx-auto flex max-w-[1720px] flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 sm:h-14 sm:flex-nowrap sm:py-0 lg:px-5">
+      <div className="mx-auto flex max-w-[1720px] flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 sm:h-14 sm:flex-nowrap sm:py-0 lg:px-5">
         <div className="flex shrink-0 items-center gap-2.5">
           <div className="num grid h-8 w-8 place-items-center border border-line bg-raise text-[11px] font-semibold tracking-wider">
             S6
@@ -89,7 +89,8 @@ export function TopBar({
           </span>
         </div>
 
-        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        {/* di layar kecil menu bisa digeser ke samping, tidak memaksa topbar melebar */}
+        <div className="ml-auto flex w-full items-center gap-2 overflow-x-auto pb-0.5 sm:w-auto sm:gap-3 sm:overflow-visible sm:pb-0">
           <div className="hidden flex-col gap-0.5 sm:flex">
             <FeedDot label="fut" connected={feed.future.connected} ageMs={now - feed.future.lastMessageTs} />
             <FeedDot label="spot" connected={feed.spot.connected} ageMs={now - feed.spot.lastMessageTs} />
@@ -104,18 +105,18 @@ export function TopBar({
 
           <div className="hidden h-8 w-px bg-line sm:block" />
 
-          <div className="flex items-center border border-line" role="group" aria-label="tema tampilan">
-            {(['gelap', 'malam'] as Theme[]).map((t) => (
+          <div className="flex shrink-0 items-center border border-line" role="group" aria-label="tema tampilan">
+            {(['gelap', 'terang'] as Theme[]).map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => onTheme(t)}
                 aria-pressed={theme === t}
-                className={`min-h-9 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors sm:min-h-0 ${
+                className={`min-h-9 shrink-0 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors sm:min-h-0 ${
                   theme === t ? 'bg-raise text-ink' : 'text-dim hover:text-mute'
                 }`}
               >
-                {t === 'gelap' ? 'Gelap' : 'Malam'}
+                {t === 'gelap' ? 'Gelap' : 'Terang'}
               </button>
             ))}
           </div>
@@ -123,14 +124,14 @@ export function TopBar({
           <button
             type="button"
             onClick={onTestSound}
-            className="min-h-9 border border-line px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute transition-colors hover:border-cyan/40 hover:text-cyan sm:min-h-0"
-            title="bunyikan tes notifikasi suara (Web Speech API)"
+            className="min-h-9 shrink-0 border border-line px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute transition-colors hover:border-cyan/40 hover:text-cyan sm:min-h-0"
+            title="bunyikan tes notifikasi suara (notif.mp3 + ucapan sinyal)"
           >
             Tes suara
           </button>
 
           <div
-            className="flex items-center border border-line"
+            className="flex shrink-0 items-center border border-line"
             role="group"
             aria-label="mode simulasi"
           >
@@ -140,7 +141,7 @@ export function TopBar({
                 type="button"
                 disabled={busy}
                 onClick={() => onSetMode(m)}
-                className={`min-h-9 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors disabled:opacity-50 sm:min-h-0 ${
+                className={`min-h-9 shrink-0 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors disabled:opacity-50 sm:min-h-0 ${
                   mode === m ? 'bg-raise text-ink' : 'text-dim hover:text-mute'
                 }`}
               >
@@ -153,7 +154,7 @@ export function TopBar({
             type="button"
             disabled={diagnosing}
             onClick={onDiagnose}
-            className="min-h-9 border border-line px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute transition-colors hover:border-cyan/40 hover:text-cyan disabled:opacity-50 sm:min-h-0"
+            className="min-h-9 shrink-0 border border-line px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute transition-colors hover:border-cyan/40 hover:text-cyan disabled:opacity-50 sm:min-h-0"
             title="cek sambungan WS, feed Binance, dan panggil REST — hasilnya masuk ke log sistem"
           >
             {diagnosing ? 'cek…' : 'Cek WS'}
@@ -163,7 +164,7 @@ export function TopBar({
             type="button"
             disabled={busy}
             onClick={onTogglePower}
-            className={`flex min-h-9 items-center gap-2 border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors disabled:opacity-50 sm:min-h-0 ${
+            className={`flex min-h-9 shrink-0 items-center gap-2 border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors disabled:opacity-50 sm:min-h-0 ${
               enabled
                 ? 'border-long/40 bg-long/10 text-long hover:bg-long/15'
                 : 'border-short/40 bg-short/10 text-short hover:bg-short/15'
@@ -175,7 +176,7 @@ export function TopBar({
             {enabled ? 'Aktif' : 'Mati'}
           </button>
 
-          <div className="hidden items-center gap-2 md:flex">
+          <div className="hidden shrink-0 items-center gap-2 md:flex">
             <span className="num text-[11px] text-mute">{hhmmss(now)}</span>
             <span
               className={`num text-[9px] uppercase tracking-wider ${

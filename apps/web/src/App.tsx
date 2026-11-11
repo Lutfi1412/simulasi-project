@@ -12,9 +12,10 @@ import { dayMonth, hhmm, money, pct, pnlClass } from './lib/format'
 import { applyTheme, loadTheme, type Theme } from './lib/theme'
 import {
   loadSoundModels,
+  primeAudio,
   saveSoundModels,
-  speak,
   speechSupported,
+  testAlert,
   useSignalSound,
 } from './lib/sound'
 
@@ -112,11 +113,12 @@ export default function App() {
   }, [post, snapshot])
 
   const testSound = useCallback(() => {
+    primeAudio()
     if (!speechSupported()) {
       setError('Browser ini tidak mendukung suara (Web Speech API). Coba Chrome/Edge.')
       return
     }
-    if (!speak('tes suara notifikasi sinyal, sinyal long dari model Meta-label', 1)) {
+    if (!testAlert()) {
       setError('Suara gagal diputar di browser ini.')
     }
   }, [])
@@ -201,9 +203,11 @@ export default function App() {
                   }}
                   onNeutralize={(id) => void post('/api/bots/neutral', { id })}
                   soundOn={Boolean(soundModels[bot.model])}
-                  onToggleSound={() =>
-                    setSoundModels((prev) => ({ ...prev, [bot.model]: !prev[bot.model] }))
-                  }
+                  onToggleSound={() => {
+                    const next = !soundModels[bot.model]
+                    if (next) primeAudio()
+                    setSoundModels((prev) => ({ ...prev, [bot.model]: next }))
+                  }}
                 />
               ))}
             </div>
@@ -248,7 +252,7 @@ export default function App() {
       </main>
 
       {error && (
-        <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 border border-short/40 bg-[#1a1113] px-3 py-2">
+        <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 border border-short/40 bg-panel px-3 py-2 shadow-lg">
           <span className="text-[11px] text-short">{error}</span>
         </div>
       )}

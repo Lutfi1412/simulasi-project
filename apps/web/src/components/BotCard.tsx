@@ -14,7 +14,7 @@ function Sparkline({ points, capital, color }: SparklineProps) {
   if (points.length < 2) {
     return (
       <svg width={w} height={h} aria-hidden className="shrink-0">
-        <line x1="0" y1={h / 2} x2={w} y2={h / 2} stroke="#2a2f37" strokeWidth="1" />
+        <line x1="0" y1={h / 2} x2={w} y2={h / 2} stroke="var(--color-line)" strokeWidth="1" />
       </svg>
     )
   }
@@ -28,7 +28,7 @@ function Sparkline({ points, capital, color }: SparklineProps) {
   const zeroY = y(0)
   return (
     <svg width={w} height={h} aria-hidden className="shrink-0">
-      <line x1="0" y1={zeroY} x2={w} y2={zeroY} stroke="#23272e" strokeWidth="1" strokeDasharray="2 3" />
+      <line x1="0" y1={zeroY} x2={w} y2={zeroY} stroke="var(--color-line)" strokeWidth="1" strokeDasharray="2 3" />
       <path d={`${path} L${w},${h} L0,${h} Z`} fill={color} opacity="0.07" />
       <path d={path} fill="none" stroke={color} strokeWidth="1.4" strokeLinejoin="round" />
     </svg>
