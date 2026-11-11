@@ -278,7 +278,10 @@ export class Bot {
     if (reason === 'tp') this.tpCount++
     if (reason === 'liq') this.liqCount++
     this.position = null
-    this.cooldownUntilMinute = reason === 'neutral' ? -Infinity : minute + this.trading.COOLDOWN_MIN
+    // TP tidak dikenai cooldown: kalau sinyal berikutnya masih bagus, boleh langsung entry lagi.
+    // SL/likuidasi/timeout tetap menunggu COOLDOWN_MIN supaya bot "belajar" dulu.
+    const noCooldown = reason === 'neutral' || reason === 'tp'
+    this.cooldownUntilMinute = noCooldown ? -Infinity : minute + this.trading.COOLDOWN_MIN
     this.curve.push({ ts, equity: this.equity })
     if (this.curve.length > 1440) this.curve.splice(0, this.curve.length - 1440)
     // Modal habis: paksa netral, kembalikan modal, dan hitung satu kalah.
