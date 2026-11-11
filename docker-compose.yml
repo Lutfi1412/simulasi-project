@@ -5,7 +5,8 @@ services:
     container_name: simulasi-6-model
     restart: unless-stopped
     ports:
-      - "${PORT:-8080}:8080"
+      # hanya localhost: satu-satunya jalan masuk adalah Cloudflare Tunnel (127.0.0.1:8090)
+      - "127.0.0.1:${PORT:-8090}:8080"
     environment:
       PORT: 8080
       SYMBOL: ${SYMBOL:-SOLUSDT}

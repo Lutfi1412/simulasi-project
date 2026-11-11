@@ -167,8 +167,14 @@ Langkah lengkap, termasuk syarat kompatibilitas fitur dan rollback: `docs/UPDATE
 
 Perilaku runtime, log, backup, pemulihan, dan troubleshooting harian: `docs/OPERASI.md`.
 
-Deploy ke VPS tanpa IP publik (Bun + systemd + Cloudflare Quick Tunnel, port 8090 supaya
-tidak bentrok dengan `futures-signal` di 8080): `docs/DEPLOY-VPS.md`.
+Status deploy VPS yang sedang berjalan, path file `.service`, prosedur update tanpa
+kehilangan data, dan **link akses publik**: `docs/DEPLOY-VPS.md`.
+
+Link akses saat ini (Cloudflare Quick Tunnel; berubah bila tunnel di-restart):
+
+```
+https://vegetation-rated-boston-promised.trycloudflare.com
+```
 
 ## Catatan
 

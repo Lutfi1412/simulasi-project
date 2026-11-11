@@ -18,11 +18,12 @@ Target yang dipakai di dokumen ini:
 | Hal | Nilai |
 |---|---|
 | VPS | `202.155.143.190`, SSH port `21031`, user `ubuntu` (Ubuntu 22.04) |
-| Folder aplikasi | `/home/ubuntu/simulasi-testing` |
+| Folder aplikasi | `/home/ubuntu/simulasi-project` |
 | Port aplikasi | `8090` di `127.0.0.1` |
-| Service aplikasi | `simulasi-6-model.service` |
-| Service tunnel | `cloudflared-simulasi.service` |
-| Data runtime | `/home/ubuntu/simulasi-testing/apps/server/data/{minutes,signals,state}` |
+| Runtime aplikasi | Docker Compose (container `simulasi-6-model`), **bukan** systemd |
+| Service tunnel | `/etc/systemd/system/cloudflared-simulasi.service` |
+| Data runtime | `/home/ubuntu/simulasi-project/data/{minutes,signals,state}` |
+| Link akses | `https://vegetation-rated-boston-promised.trycloudflare.com` |
 
 **Kenapa 8090, bukan 8080.** `futures-signal` di VPS ini sudah memakai 8080 (unit
 cloudflared lamanya menunjuk `http://127.0.0.1:8080`). Jangan mengubah unit itu dan jangan
@@ -31,35 +32,103 @@ tiga tempat: `.env`, unit aplikasi, dan perintah `cloudflared --url`.
 
 ---
 
-## Status deploy yang berjalan (VPS Lutfi, 9 Nov 2026)
+## Status deploy yang berjalan (VPS Lutfi, diperbarui 11 Nov 2026)
 
-Yang benar-benar dipasang dan sudah diuji, bukan rencana:
+Yang benar-benar terpasang dan sudah diuji, bukan rencana.
+
+### Link akses publik
+
+```
+https://vegetation-rated-boston-promised.trycloudflare.com
+```
+
+Dibuka lewat Cloudflare Quick Tunnel karena VPS **tidak punya IP publik**. URL ini hanya
+hidup selama `cloudflared-simulasi.service` jalan; kalau tunnel di-restart/reboot, URL
+berubah — ambil yang terbaru dari `/home/ubuntu/simulasi-url.txt` (lihat bagian 7).
+
+### Inventaris yang terpasang
 
 | Hal | Nilai nyata |
 |---|---|
-| Kode | `/home/ubuntu/simulasi-project` (git clone `Lutfi1412/simulasi-project` + overlay dari laptop) |
-| Container | `simulasi-6-model` (image `simulasi-6-model:latest`, `restart=unless-stopped`) |
-| Port | `127.0.0.1:8090 -> 8080` (hanya localhost) |
-| Tunnel | `cloudflared-simulasi.service`, `--edge-ip-version 4`, URL acak `*.trycloudflare.com` |
-| URL aktif | tersimpan di `/home/ubuntu/simulasi-url.txt` (`~/simulasi-url.sh` memperbaruinya tiap 2 menit) |
-| Data | `/home/ubuntu/simulasi-project/data/{minutes,signals,state}` (persist, ikut restart) |
-| Layanan lain | `futures-signal` 8080, `rekapan-narsum-rest` 3001, `rekapan-narsum-db` 21051 — semua tetap hidup |
+| Folder aplikasi | `/home/ubuntu/simulasi-project` |
+| Runtime | **Docker Compose** (project `simulasi-project`), container `simulasi-6-model` |
+| Image | `simulasi-6-model:latest` dibangun dari `Dockerfile` di folder yang sama |
+| Restart policy | `unless-stopped` (hidup lagi otomatis saat reboot selama tidak di-`stop`) |
+| Port | `127.0.0.1:8090 -> 8080` (hanya localhost, tidak terbuka ke jaringan) |
+| Service tunnel | `/etc/systemd/system/cloudflared-simulasi.service` (salinan: `/home/ubuntu/cloudflared-simulasi.service`) |
+| Service aplikasi (systemd) | **tidak ada** — aplikasi dijalankan Docker, bukan systemd |
+| URL aktif | `/home/ubuntu/simulasi-url.txt` (diperbarui `~/simulasi-url.sh` tiap 2 menit + `@reboot`) |
+| Data runtime | `/home/ubuntu/simulasi-project/data/{minutes,signals,state}` (bind mount, persist) |
+| Model | `/home/ubuntu/simulasi-project/apps/server/models` (bind mount) |
+| Data replay | `/home/ubuntu/simulasi-project/apps/server/data/replay` (dari image, 8,9 MB) |
+| Log | `journalctl -u cloudflared-simulasi` + `docker compose logs` / `docker logs simulasi-6-model` |
+| Layanan lain | `futures-signal` 8080, `rekapan-narsum-rest` 3001, `rekapan-narsum-db` 21051 — jangan disentuh |
 
-Catatan penting yang berbeda dari teori di bawah:
+### Letak file service (systemd)
 
-1. **Repo GitHub belum lengkap untuk runtime.** `apps/server/models` di repo hanya 748 KB
-   (harusnya 9,6 MB) dan `apps/server/data/replay` tidak ada. Deploy harus menyalin model +
-   replay dari laptop (tar 14 MB), kalau tidak model gagal dimuat dan tab REPLAY kosong.
-2. **Dockerfile lama membundel React mode development** (`ENV NODE_ENV=development` di stage
-   build) sehingga bundel 495 KB, bukan 260 KB. Sudah diperbaiki: `ENV NODE_ENV=production`
-   sebelum `RUN bun run --cwd apps/web build`.
-3. **VPS ini tidak punya IPv6 global** dan precheck cloudflared melaporkan QUIC/TCP 7844
-   gagal, padahal TCP 7844 ke edge bisa. Tanpa `--edge-ip-version 4`, cloudflared memilih
-   AAAA dan tunnel mati dengan error `Register tunnel error ... context deadline exceeded`.
-   Dengan flag itu, tunnel mendaftar normal (`protocol=quic`, lokasi sin/cgk).
-4. **URL quick tunnel berubah setiap cloudflared restart/reboot.** Bukan bug. Ambil yang
-   terbaru dengan `~/simulasi-url.sh` atau `cat ~/simulasi-url.txt`; cron 2 menit dan
-   `@reboot` menjaga berkas itu tetap segar.
+```
+/etc/systemd/system/cloudflared-simulasi.service   <- unit yang aktif dipakai systemd
+/home/ubuntu/cloudflared-simulasi.service          <- salinan untuk arsip/edit
+```
+
+Tidak ada `simulasi-6-model.service`: percobaan systemd lama sudah dihapus dan aplikasi
+berjalan sebagai container Docker. Karena itu `After=simulasi-6-model.service` pada unit
+tunnel hanya menunggu unit yang tidak ada (tidak berbahaya, langsung lanjut). Kalau nanti
+ingin merapikan, ganti `After/Wants` menjadi `docker.service` **saat tunnel memang mau
+di-restart** — restart tunnel akan mengganti URL.
+
+### Catatan penting
+
+1. **Data runtime jangan pernah dihapus.** `data/minutes` adalah histori menit yang dipakai
+   pemanasan 305 menit (per 11 Nov 2026 ±2.739 menit data terekam, ±1.800 menit histori
+   menyambung). `data/state` menyimpan posisi/trade ekuitas bot.
+2. **VPS ini tidak punya IPv6 global.** Wajib `--edge-ip-version 4` pada cloudflared, kalau
+   tidak tunnel gagal daftar (`Register tunnel error ... context deadline exceeded`).
+3. **URL quick tunnel berubah setiap cloudflared restart/reboot.** Bukan bug. Pakai
+   `~/simulasi-url.sh` atau `cat ~/simulasi-url.txt`.
+4. **Repo GitHub sekarang sudah lengkap** (`apps/server/models` 9,6 MB + `apps/server/data/replay`
+   8,9 MB ikut ter-commit), jadi `git clone` langsung bisa dijalankan tanpa overlay dari laptop.
+5. **Dockerfile** memakai `ENV NODE_ENV=production` sebelum build UI (bundel produksi, bukan dev).
+
+### Prosedur update kode tanpa kehilangan data (yang dipakai 11 Nov 2026)
+
+Kunci: `data/` dan `.env` **tidak** ikut diganti. Clone baru, salin data, tukar folder,
+rebuild image. Downtime hanya saat tukar folder (±10 detik) supaya histori menit tidak putus.
+
+```bash
+cd /home/ubuntu
+TS=$(date +%F-%H%M)
+
+# 1. backup penuh (kode + data + .env) sebelum menyentuh apa pun
+tar czf ~/simulasi-backup-$TS.tgz -C /home/ubuntu simulasi-project
+
+# 2. clone kode terbaru ke folder sementara
+git clone https://github.com/Lutfi1412/simulasi-project.git simulasi-project-new
+
+# 3. bangun image baru DULU (container lama masih hidup, downtime belum mulai)
+cd simulasi-project-new && docker compose build
+
+# 4. hentikan container, pindahkan data + .env ke folder baru
+cd /home/ubuntu/simulasi-project && docker compose down
+cp -a /home/ubuntu/simulasi-project/.env /home/ubuntu/simulasi-project-new/.env
+mkdir -p /home/ubuntu/simulasi-project-new/data
+cp -a /home/ubuntu/simulasi-project/data/. /home/ubuntu/simulasi-project-new/data/
+
+# 5. tukar folder: lama -> arsip, baru -> nama resmi
+cd /home/ubuntu
+mv simulasi-project simulasi-project-backup-$TS
+mv simulasi-project-new simulasi-project
+
+# 6. hidupkan dari folder resmi
+cd simulasi-project && docker compose up -d
+curl -s http://127.0.0.1:8090/api/health   # historyMinutes harus tetap ±1.800, bukan 0
+
+# 7. setelah yakin sehat & data utuh, buang arsip supaya tidak jadi sampah
+rm -rf /home/ubuntu/simulasi-project-backup-$TS ~/simulasi-backup-$TS.tgz
+```
+
+Tunnel tidak disentuh sama sekali, jadi URL tetap. Kalau `historyMinutes` jatuh ke 0,
+jangan hapus arsip apa pun — kembalikan dengan `mv simulasi-project ...backup` dan ulangi.
 
 ---
 
@@ -107,7 +176,9 @@ Yang perlu diperhatikan:
 
 ## 2. Pilih cara kirim kode
 
-Repo ini belum punya remote git, jadi cara tercepat adalah `tar` lewat SSH. Jalankan dari
+Repo ini **sudah** punya remote GitHub (`Lutfi1412/simulasi-project`), jadi cara paling rapi
+adalah `git clone` langsung di VPS (lihat prosedur update di bagian Status deploy). Cara
+`tar` lewat SSH di bawah tetap bisa dipakai sebagai alternatif manual. Jalankan dari
 **git-bash di Windows**:
 
 ```bash
