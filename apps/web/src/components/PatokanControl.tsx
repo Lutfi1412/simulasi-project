@@ -169,6 +169,9 @@ export function PatokanControl({ currentPrice }: PatokanControlProps) {
                 ? 'aktif saat harga ≤ patokan (harga turun menyentuh angka).'
                 : 'aktif saat harga ≥ patokan (harga naik menyentuh angka).'}
             </p>
+            <p className="mt-1 text-[10px] leading-snug text-dim">
+              sekali tercapai: notif 3× lalu diam. Buat/perbarui patokan supaya menunggu lagi.
+            </p>
 
             {error && <p className="mt-2 text-[10px] text-short">{error}</p>}
 

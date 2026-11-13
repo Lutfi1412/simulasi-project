@@ -207,11 +207,20 @@ export function testAlert(): boolean {
 }
 
 /**
- * Notifikasi patokan harga: notif.mp3 selesai dulu, lalu ucapan
- * "patokan sudah di tercapai". Dipanggil sekali saat patokan pertama kali tercapai.
+ * Notifikasi patokan harga: satu kejadian = notif.mp3 diputar 3x, masing-masing
+ * diikuti ucapan "patokan sudah di tercapai". Setelah tercapai fungsi ini tidak
+ * dipanggil lagi sampai patokan baru dibuat/diedit (status kembali "menunggu").
  */
-export function alertPatokan(repeat = 3): Promise<void> {
-  return enqueueAlert('patokan sudah di tercapai', repeat)
+export function alertPatokan(times = 3): Promise<void> {
+  const count = Math.max(1, Math.round(times))
+  const run = alertChain.then(async () => {
+    for (let i = 0; i < count; i++) {
+      await playNotifAndWait()
+      await speakAsync('patokan sudah di tercapai', 1)
+    }
+  })
+  alertChain = run.catch(() => {})
+  return run
 }
 
 /**

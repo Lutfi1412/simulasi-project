@@ -173,7 +173,7 @@ kehilangan data, dan **link akses publik**: `docs/DEPLOY-VPS.md`.
 Link akses saat ini (Cloudflare Quick Tunnel; berubah bila tunnel di-restart):
 
 ```
-https://vegetation-rated-boston-promised.trycloudflare.com
+https://marking-lit-alice-sustainable.trycloudflare.com
 ```
 
 ## Catatan

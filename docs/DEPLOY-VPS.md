@@ -23,7 +23,7 @@ Target yang dipakai di dokumen ini:
 | Runtime aplikasi | Docker Compose (container `simulasi-6-model`), **bukan** systemd |
 | Service tunnel | `/etc/systemd/system/cloudflared-simulasi.service` |
 | Data runtime | `/home/ubuntu/simulasi-project/data/{minutes,signals,state}` |
-| Link akses | `https://vegetation-rated-boston-promised.trycloudflare.com` |
+| Link akses | `https://marking-lit-alice-sustainable.trycloudflare.com` |
 
 **Kenapa 8090, bukan 8080.** `futures-signal` di VPS ini sudah memakai 8080 (unit
 cloudflared lamanya menunjuk `http://127.0.0.1:8080`). Jangan mengubah unit itu dan jangan
@@ -32,14 +32,14 @@ tiga tempat: `.env`, unit aplikasi, dan perintah `cloudflared --url`.
 
 ---
 
-## Status deploy yang berjalan (VPS Lutfi, diperbarui 11 Nov 2026)
+## Status deploy yang berjalan (VPS Lutfi, diperbarui 13 Nov 2026)
 
 Yang benar-benar terpasang dan sudah diuji, bukan rencana.
 
 ### Link akses publik
 
 ```
-https://vegetation-rated-boston-promised.trycloudflare.com
+https://marking-lit-alice-sustainable.trycloudflare.com
 ```
 
 Dibuka lewat Cloudflare Quick Tunnel karena VPS **tidak punya IP publik**. URL ini hanya
