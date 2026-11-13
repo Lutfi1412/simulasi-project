@@ -29,9 +29,11 @@ Hasil build release:
   - sinyal: `notif.mp3` 1× lalu ucapan “sinyal long/short dari model …” 3×;
   - patokan: 3 siklus (`notif.mp3` + ucapan “patokan … sudah di tercapai”);
   - suara memakai `MediaPlayer` + `TextToSpeech` (bahasa Indonesia bila tersedia).
-- **Patokan lebih dari satu** di layar native, disimpan di SharedPreferences supaya bisa
-  diperiksa layanan saat aplikasi tertutup. Versi web tetap punya daftar patokan sendiri
-  di localStorage.
+- **Patokan lebih dari satu** dikelola di UI web (tombol **Patokan** di topbar). Aplikasi
+  menyalin daftar `localStorage` itu ke SharedPreferences lewat jembatan JavaScript tiap
+  2 detik, jadi layanan latar belakang memantau daftar yang sama. Status `reached` yang
+  sudah berbunyi dipertahankan supaya tidak bunyi ulang saat aplikasi dibuka kembali.
+  Dialog **Patokan** di aplikasi hanya menampilkan daftar yang tersinkron (read-only).
 - **Pengaturan URL server** dari dalam aplikasi (tombol **Set**), penting karena URL
   Cloudflare Quick Tunnel bisa berubah setelah tunnel di-restart / VPS reboot.
 - Tombol **Patokan**, **Set**, dan **OFF/ON** di bar atas native; tombol kembali mengikuti
@@ -46,8 +48,8 @@ Hasil build release:
 3. Sinyal baru dikenali dari kunci `botId-ts-side`; kunci yang sudah pernah dilihat disimpan
    di SharedPreferences (maksimal 300 kunci), jadi tidak ada notifikasi ulang saat service
    restart.
-4. Patokan native yang `waiting` dan sudah tersentuh harga ditandai `reached` (sekali) lalu
-   memicu notifikasi + suara.
+4. Patokan hasil sinkron dari UI web yang `waiting` dan sudah tersentuh harga ditandai
+   `reached` (sekali) lalu memicu notifikasi + suara.
 5. Saat aplikasi sedang terlihat, layanan tidak membunyikan notifikasi ganda (UI web sudah
    menangani sinyal dan patokan web).
 
@@ -87,4 +89,7 @@ Salin hasil `app\build\outputs\apk\release\app-release.apk` ke folder `release\`
 
 - Aplikasi tidak menyimpan data historis 305 menit. Semua data trading tetap di backend
   VPS (`/home/ubuntu/simulasi-project/data`), dan aplikasi hanya membaca API.
+- Patokan yang dibuat di browser laptop tidak otomatis muncul di HP: patokan disimpan di
+  `localStorage` per-perangkat. Buat patokan dari dashboard di HP agar ikut dipantau
+  layanan latar belakang.
 - Tidak ada order nyata; ini tetap paper trading.
