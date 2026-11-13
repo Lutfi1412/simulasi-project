@@ -23,7 +23,8 @@ Hasil build release:
 - **Latar belakang aktif secara default** setelah aplikasi pertama kali dibuka
   (`Prefs.isEnabled` default `true`). Foreground service tipe `specialUse` tetap berjalan
   saat layar mati / aplikasi di belakang, dan dinyalakan lagi setelah HP reboot.
-- **Polling `/api/snapshot` tiap 10 detik** untuk mendeteksi sinyal baru dan memantau harga.
+- **Polling `/api/signals` tiap 10 detik** (payload ±1 KB: harga + sinyal terbaru) untuk
+  mendeteksi sinyal baru dan memantau harga tanpa memboroskan kuota.
 - **Notifikasi + suara**:
   - sinyal: `notif.mp3` 1× lalu ucapan “sinyal long/short dari model …” 3×;
   - patokan: 3 siklus (`notif.mp3` + ucapan “patokan … sudah di tercapai”);
@@ -41,7 +42,7 @@ Hasil build release:
 1. `MainActivity` memulai `MonitorService` saat dibuka (default ON) dan meminta izin
    `POST_NOTIFICATIONS` di Android 13+.
 2. `MonitorService` menampilkan notifikasi layanan (ongoing), mengambil wake-lock parsial,
-   lalu memanggil `GET {baseUrl}/api/snapshot` secara berkala.
+   lalu memanggil `GET {baseUrl}/api/signals` secara berkala.
 3. Sinyal baru dikenali dari kunci `botId-ts-side`; kunci yang sudah pernah dilihat disimpan
    di SharedPreferences (maksimal 300 kunci), jadi tidak ada notifikasi ulang saat service
    restart.

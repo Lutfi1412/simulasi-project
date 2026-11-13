@@ -154,6 +154,7 @@ dilatih dari aturan itu.
 |---|---|---|
 | GET | `/api/health` | status feed, pemanasan, uptime |
 | GET | `/api/snapshot` | seluruh state UI (bot, posisi, trade, log, replay) |
+| GET | `/api/signals` | payload ringan: harga + sinyal terbaru (dipakai aplikasi mobile) |
 | GET | `/api/trades?model=<nama>&limit=<n>` | histori trade |
 | GET | `/api/models` | manifest model aktif |
 | GET | `/api/diagnostics` | cek WS, feed, REST Binance, pemanasan (dipakai tombol **Cek WS**) |

@@ -212,3 +212,12 @@ export interface TradesResponse {
   trades: TradeView[]
   total: number
 }
+
+/** Payload ringan untuk aplikasi mobile: harga + sinyal terbaru saja. */
+export interface SignalFeed {
+  serverTime: number
+  mode: Mode
+  enabled: boolean
+  price: number
+  signals: Snapshot['signals']
+}

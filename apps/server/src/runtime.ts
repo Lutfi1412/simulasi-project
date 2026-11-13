@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { config } from './config'
-import type { Diagnostics, LogEntry, Mode, ReplayView, RestProbe, Snapshot, TradeView } from './api/contract'
+import type { Diagnostics, LogEntry, Mode, ReplayView, RestProbe, SignalFeed, Snapshot, TradeView } from './api/contract'
 import { BinanceFeed, type MarketStatus } from './feed/binanceFeed'
 import { fetchJson } from './feed/net'
 import { metrics } from './metrics'
@@ -363,6 +363,25 @@ export class SimulationRuntime {
     this.log('warn', 'menyambung ulang feed Binance atas permintaan')
     this.feed.stop()
     setTimeout(() => this.feed.start(), 400)
+  }
+
+  /**
+   * Payload ringan untuk polling aplikasi mobile (hanya harga + sinyal terbaru).
+   * Jauh lebih kecil dari /api/snapshot sehingga hemat kuota saat di latar belakang.
+   */
+  signalFeed(): SignalFeed {
+    const feed = this.feed.getStatus()
+    const price =
+      this.mode === 'replay'
+        ? this.replay?.currentPrice || this.live.lastPrice
+        : this.live.lastPrice || this.ticker.price || feed.future.lastPrice
+    return {
+      serverTime: Date.now(),
+      mode: this.mode,
+      enabled: this.enabled,
+      price,
+      signals: this.activeBots.recentSignals.slice(0, 12),
+    }
   }
 
   snapshot(): Snapshot {

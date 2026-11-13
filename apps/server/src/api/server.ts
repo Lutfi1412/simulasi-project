@@ -104,6 +104,9 @@ export function startServer(runtime: SimulationRuntime) {
 
       if (pathname === '/api/snapshot') return json(runtime.snapshot())
 
+      // ringan untuk aplikasi mobile: harga + sinyal terbaru (tanpa bot/trade/log penuh)
+      if (pathname === '/api/signals') return json(runtime.signalFeed())
+
       if (pathname === '/api/diagnostics') return json(await runtime.diagnostics())
 
       if (pathname === '/api/trades') {
