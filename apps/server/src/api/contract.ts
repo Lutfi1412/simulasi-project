@@ -37,6 +37,8 @@ export interface BotStatsView {
   trades: number
   winRate: number
   losses: number
+  /** jumlah reset manual ke modal awal (dipisah dari kalah) */
+  resets: number
   tpRate: number
   liqCount: number
   maxDdPct: number

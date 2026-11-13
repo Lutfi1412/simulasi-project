@@ -156,8 +156,9 @@ export class BinanceFeed {
 
     let ws: WebSocket
     let opened = false
+    const useTunnel = st.transport === 'tunnel'
     try {
-      if (st.transport === 'tunnel') {
+      if (useTunnel) {
         // DNS ISP membelokkan host: sambung ke terowongan lokal (SNI + Host tetap asli)
         const port = await ensureTunnel(host)
         ws = new WebSocket(`ws://127.0.0.1:${port}${target.pathname}`, {
@@ -177,6 +178,9 @@ export class BinanceFeed {
     ws.onopen = () => {
       opened = true
       st.connected = true
+      // status transport harus mengikuti jalur yang benar-benar berhasil; dulu
+      // nilai 'blocked' dari kegagalan sebelumnya menempel walau data sudah mengalir.
+      st.transport = useTunnel ? 'tunnel' : 'direct'
       st.error = null
       st.reconnects++
       this.attempt.set(market, 0)

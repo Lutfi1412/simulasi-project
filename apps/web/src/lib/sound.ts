@@ -207,6 +207,14 @@ export function testAlert(): boolean {
 }
 
 /**
+ * Notifikasi patokan harga: notif.mp3 selesai dulu, lalu ucapan
+ * "patokan sudah di tercapai". Dipanggil sekali saat patokan pertama kali tercapai.
+ */
+export function alertPatokan(repeat = 3): Promise<void> {
+  return enqueueAlert('patokan sudah di tercapai', repeat)
+}
+
+/**
  * Bunyikan notifikasi untuk sinyal BARU yang masuk (yang benar-benar memicu entri).
  * Snapshot pertama hanya menandai sinyal lama supaya riwayat tidak ikut dibacakan.
  */

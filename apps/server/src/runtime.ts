@@ -17,6 +17,7 @@ interface PersistedBot {
   maxDd: number
   wins: number
   losses?: number
+  resetCount?: number
   tpCount: number
   liqCount: number
   cooldownUntilMinute: number
@@ -183,7 +184,7 @@ export class SimulationRuntime {
     const mgr = target === 'replay' ? this.replayBots : this.liveBots
     mgr.reset(true)
     this.tradeSeen.clear()
-    this.log('warn', target === 'replay' ? 'simulasi replay direset ke modal awal' : 'simulasi live direset ke modal awal')
+    this.log('warn', target === 'replay' ? 'simulasi replay direset ke modal awal (reset +1 per model)' : 'simulasi live direset ke modal awal (reset +1 per model)')
     this.persist()
     this.publish()
   }
@@ -194,7 +195,7 @@ export class SimulationRuntime {
     if (!bot) return false
     bot.reset(true)
     this.tradeSeen.set(bot.id, 0)
-    this.log('warn', `${bot.modelName}: saldo + statistik direset ke modal awal (trade/win/kalah/dd/pf dikosongkan)`)
+    this.log('warn', `${bot.modelName}: saldo + statistik direset ke modal awal, reset ke-${bot.resetCount} (trade/win/kalah/dd/pf dikosongkan, bukan kalah)`)
     this.persist()
     this.publish()
     return true
@@ -514,6 +515,7 @@ export class SimulationRuntime {
           maxDd: b.maxDd,
           wins: b.wins,
           losses: b.losses,
+          resetCount: b.resetCount,
           tpCount: b.tpCount,
           liqCount: b.liqCount,
           cooldownUntilMinute: b.cooldownUntilMinute,
@@ -543,6 +545,7 @@ export class SimulationRuntime {
         bot.peak = saved.peak
         bot.maxDd = saved.maxDd
         bot.wins = saved.wins
+        bot.resetCount = saved.resetCount ?? 0
         bot.tpCount = saved.tpCount
         bot.liqCount = saved.liqCount
         bot.cooldownUntilMinute = saved.cooldownUntilMinute

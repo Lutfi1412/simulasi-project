@@ -3,6 +3,7 @@ import type { Mode, Snapshot } from '../../../server/src/api/contract'
 import { hhmmss, price, pct } from '../lib/format'
 import type { Theme } from '../lib/theme'
 import type { Connection } from '../lib/useSnapshot'
+import { PatokanControl } from './PatokanControl'
 
 function describeLag(ms: number): string {
   if (ms < 0) return 'ws —'
@@ -120,6 +121,8 @@ export function TopBar({
               </button>
             ))}
           </div>
+
+          <PatokanControl currentPrice={market.price} />
 
           <button
             type="button"

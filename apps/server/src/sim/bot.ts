@@ -80,6 +80,8 @@ export class Bot {
   losses = 0
   tpCount = 0
   liqCount = 0
+  /** berapa kali model ini direset manual ke modal awal (bukan kalah) */
+  resetCount = 0
   /** Dipanggil saat modal habis (equity 0) dan bot direset otomatis. */
   onBankrupt: ((bot: Bot, trade: BotTrade | undefined) => void) | null = null
   private seq = 0
@@ -207,7 +209,9 @@ export class Bot {
     return true
   }
 
-  reset(_manual = false): void {
+  reset(manual = false): void {
+    // reset manual dihitung terpisah sebagai "reset", bukan sebagai kalah
+    if (manual) this.resetCount++
     this.equity = this.capital
     this.peak = this.capital
     this.maxDd = 0
@@ -351,6 +355,7 @@ export class Bot {
       trades: n,
       winRate,
       losses: this.losses,
+      resets: this.resetCount,
       tpRate: n ? (tps / n) * 100 : 0,
       liqCount: this.liqCount,
       maxDdPct: this.maxDd * 100,

@@ -153,11 +153,12 @@ export function BotCard({
         )}
       </div>
 
-      <div className="grid grid-cols-5 gap-px border-t border-line/70 bg-line/60">
+      <div className="grid grid-cols-6 gap-px border-t border-line/70 bg-line/60">
         {[
           ['trade', String(bot.stats.trades)],
           ['win', `${bot.stats.winRate.toFixed(0)}%`],
           ['kalah', String(bot.stats.losses)],
+          ['reset', String(bot.stats.resets)],
           ['dd', `${bot.stats.maxDdPct.toFixed(1)}%`],
           ['pf', bot.stats.profitFactor >= 999 ? '∞' : bot.stats.profitFactor.toFixed(2)],
         ].map(([label, value]) => (
