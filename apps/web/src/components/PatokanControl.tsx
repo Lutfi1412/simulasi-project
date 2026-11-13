@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { price } from '../lib/format'
 import {
+  createPatokan,
   isPatokanReached,
-  loadPatokan,
+  loadPatokans,
   patokanLabel,
-  savePatokan,
+  savePatokans,
   type Patokan,
   type PatokanDirection,
 } from '../lib/patokan'
@@ -23,37 +24,55 @@ function parsePrice(text: string): number {
   return Number.isFinite(value) && value > 0 ? value : Number.NaN
 }
 
+function speechValue(value: number): string {
+  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value)
+}
+
 /**
- * Patokan harga SOL di topbar. Cukup isi angka + arah (di bawah / di atas);
- * sistem membandingkan dengan harga pasar yang masuk dan berbunyi sekali saat tercapai.
+ * Patokan harga SOL di topbar. Bisa lebih dari satu baris; setiap patokan punya
+ * arah (di bawah / di atas) dan status sendiri. Sistem membandingkan dengan harga
+ * pasar yang masuk dan berbunyi sekali per patokan saat harganya tersentuh.
  */
 export function PatokanControl({ currentPrice }: PatokanControlProps) {
-  const [patokan, setPatokan] = useState<Patokan | null>(() => loadPatokan())
+  const [items, setItems] = useState<Patokan[]>(() => loadPatokans())
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [direction, setDirection] = useState<PatokanDirection>('below')
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const announced = useRef<string | null>(null)
+  const announced = useRef<Set<string>>(new Set())
+
+  const waiting = useMemo(() => items.filter((p) => p.status === 'waiting'), [items])
+  const reachedCount = items.length - waiting.length
 
   useEffect(() => {
-    if (!open) return
-    setInput(patokan ? String(patokan.value) : '')
-    setDirection(patokan?.direction ?? 'below')
+    if (!open || editingId) return
+    setInput('')
+    setDirection('below')
     setError(null)
-  }, [open, patokan])
+  }, [open, editingId])
 
-  // Bunyikan sekali saat harga menyentuh patokan, lalu status menjadi "tercapai".
+  // Bunyikan sekali per patokan saat harga menyentuh angkanya, lalu statusnya "tercapai".
   useEffect(() => {
-    if (!patokan || patokan.status !== 'waiting') return
-    if (!isPatokanReached(currentPrice, patokan)) return
-    const key = `${patokan.direction}:${patokan.value}`
-    if (announced.current === key) return
-    announced.current = key
-    const next: Patokan = { ...patokan, status: 'reached' }
-    setPatokan(next)
-    savePatokan(next)
-    void alertPatokan(3)
-  }, [currentPrice, patokan])
+    if (!Number.isFinite(currentPrice) || currentPrice <= 0) return
+    const hits = items.filter(
+      (p) => p.status === 'waiting' && !announced.current.has(p.id) && isPatokanReached(currentPrice, p),
+    )
+    if (!hits.length) return
+    for (const p of hits) announced.current.add(p.id)
+    const hitIds = new Set(hits.map((p) => p.id))
+    const next = items.map((p) => (hitIds.has(p.id) ? { ...p, status: 'reached' as const } : p))
+    setItems(next)
+    savePatokans(next)
+    for (const p of hits) {
+      void alertPatokan(3, `patokan ${speechValue(p.value)} sudah di tercapai`)
+    }
+  }, [currentPrice, items])
+
+  const update = (next: Patokan[]) => {
+    setItems(next)
+    savePatokans(next)
+  }
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -63,23 +82,54 @@ export function PatokanControl({ currentPrice }: PatokanControlProps) {
       return
     }
     primeAudio()
-    const next: Patokan = { value, direction, status: 'waiting' }
-    announced.current = null
-    setPatokan(next)
-    savePatokan(next)
-    setOpen(false)
+    if (editingId) {
+      announced.current.delete(editingId)
+      update(
+        items.map((p) =>
+          p.id === editingId ? { ...p, value, direction, status: 'waiting' as const } : p,
+        ),
+      )
+      setEditingId(null)
+    } else {
+      update([createPatokan(value, direction), ...items])
+    }
+    setInput('')
+    setDirection('below')
+    setError(null)
   }
 
-  const remove = () => {
-    announced.current = null
-    setPatokan(null)
-    savePatokan(null)
-    setOpen(false)
+  const startEdit = (p: Patokan) => {
+    setEditingId(p.id)
+    setInput(String(p.value))
+    setDirection(p.direction)
+    setError(null)
   }
 
-  const reached = patokan?.status === 'reached'
-  const statusText = !patokan ? 'kosong' : reached ? 'tercapai' : 'menunggu'
-  const statusColor = !patokan ? 'text-dim' : reached ? 'text-long' : 'text-amber'
+  const cancelEdit = () => {
+    setEditingId(null)
+    setInput('')
+    setDirection('below')
+    setError(null)
+  }
+
+  const remove = (id: string) => {
+    announced.current.delete(id)
+    update(items.filter((p) => p.id !== id))
+    if (editingId === id) cancelEdit()
+  }
+
+  const clearReached = () => {
+    for (const p of items) {
+      if (p.status === 'reached') announced.current.delete(p.id)
+    }
+    update(items.filter((p) => p.status !== 'reached'))
+    if (editingId && items.some((p) => p.id === editingId && p.status === 'reached')) cancelEdit()
+  }
+
+  const statusText =
+    items.length === 0 ? 'kosong' : waiting.length > 0 ? `${waiting.length} menunggu` : 'tercapai'
+  const statusColor =
+    items.length === 0 ? 'text-dim' : waiting.length > 0 ? 'text-amber' : 'text-long'
 
   return (
     <div className="relative flex shrink-0 items-center border border-line">
@@ -91,16 +141,20 @@ export function PatokanControl({ currentPrice }: PatokanControlProps) {
         className={`flex min-h-9 items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors sm:min-h-0 ${
           open ? 'bg-raise text-ink' : 'text-mute hover:text-ink'
         }`}
-        title="patokan harga: beri tahu saat harga menyentuh angka tertentu"
+        title="patokan harga: beri tahu saat harga menyentuh angka tertentu (bisa lebih dari satu)"
       >
         Patokan
-        {patokan && <span className="num normal-case tracking-normal text-[9px] text-dim">{patokanLabel(patokan)}</span>}
+        {items.length > 0 && (
+          <span className="num normal-case tracking-normal text-[9px] text-dim">
+            {waiting.length}/{items.length}
+          </span>
+        )}
       </button>
       <span
         className={`border-l border-line px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] ${statusColor}`}
         title={
-          patokan
-            ? `${patokanLabel(patokan)} · ${reached ? 'sudah tercapai, tidak akan berbunyi lagi' : 'menunggu harga menyentuh patokan'}`
+          items.length
+            ? `${waiting.length} menunggu · ${reachedCount} tercapai`
             : 'belum ada patokan'
         }
       >
@@ -117,15 +171,57 @@ export function PatokanControl({ currentPrice }: PatokanControlProps) {
           />
           <form
             onSubmit={submit}
-            className="fixed right-3 top-16 z-50 w-[300px] max-w-[calc(100vw-1.5rem)] border border-line bg-panel p-3 shadow-xl"
+            className="fixed right-3 top-16 z-50 max-h-[calc(100vh-5rem)] w-[340px] max-w-[calc(100vw-1.5rem)] overflow-y-auto border border-line bg-panel p-3 shadow-xl"
           >
             <div className="flex items-baseline justify-between">
               <span className="text-[12px] font-semibold tracking-tight">Patokan harga</span>
               <span className="num text-[10px] text-dim">harga {price(currentPrice)}</span>
             </div>
 
-            <label className="mt-2 block">
-              <span className="label text-[8.5px]">harga patokan (USDT)</span>
+            {items.length > 0 ? (
+              <ul className="mt-2 divide-y divide-line/60 border border-line">
+                {items.map((p) => {
+                  const reached = p.status === 'reached'
+                  return (
+                    <li key={p.id} className="flex items-center gap-2 px-2 py-1.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="num text-[12px] text-ink">{patokanLabel(p)}</div>
+                        <div
+                          className={`text-[8.5px] font-semibold uppercase tracking-[0.08em] ${
+                            reached ? 'text-long' : 'text-amber'
+                          }`}
+                        >
+                          {reached ? 'tercapai' : 'menunggu'}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => startEdit(p)}
+                        className="min-h-7 border border-line px-1.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-mute hover:border-cyan/40 hover:text-cyan"
+                      >
+                        edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => remove(p.id)}
+                        className="min-h-7 border border-line px-1.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-dim hover:border-short/50 hover:text-short"
+                      >
+                        hapus
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p className="mt-2 border border-dashed border-line px-2 py-2 text-[10px] text-dim">
+                belum ada patokan. tambahkan satu atau beberapa angka di bawah.
+              </p>
+            )}
+
+            <label className="mt-3 block">
+              <span className="label text-[8.5px]">
+                {editingId ? 'ubah harga patokan (USDT)' : 'tambah harga patokan (USDT)'}
+              </span>
               <input
                 type="text"
                 inputMode="decimal"
@@ -170,7 +266,8 @@ export function PatokanControl({ currentPrice }: PatokanControlProps) {
                 : 'aktif saat harga ≥ patokan (harga naik menyentuh angka).'}
             </p>
             <p className="mt-1 text-[10px] leading-snug text-dim">
-              sekali tercapai: notif 3× lalu diam. Buat/perbarui patokan supaya menunggu lagi.
+              tiap patokan berbunyi 3× sekali saat tercapai, lalu diam. tambah patokan lain kapan saja;
+              menunggu dan tercapai dihitung per baris.
             </p>
 
             {error && <p className="mt-2 text-[10px] text-short">{error}</p>}
@@ -180,18 +277,28 @@ export function PatokanControl({ currentPrice }: PatokanControlProps) {
                 type="submit"
                 className="min-h-9 flex-1 border border-cyan/40 bg-cyan/10 px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-cyan hover:bg-cyan/15"
               >
-                {patokan ? 'perbarui' : 'simpan'}
+                {editingId ? 'simpan perubahan' : 'tambah patokan'}
               </button>
-              {patokan && (
+              {editingId && (
                 <button
                   type="button"
-                  onClick={remove}
-                  className="min-h-9 border border-line px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-dim hover:border-short/50 hover:text-short"
+                  onClick={cancelEdit}
+                  className="min-h-9 border border-line px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-mute hover:text-ink"
                 >
-                  hapus
+                  batal
                 </button>
               )}
             </div>
+
+            {reachedCount > 0 && (
+              <button
+                type="button"
+                onClick={clearReached}
+                className="mt-2 w-full border border-line px-2 py-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-dim hover:border-short/50 hover:text-short"
+              >
+                hapus semua yang tercapai ({reachedCount})
+              </button>
+            )}
           </form>
         </>
       )}

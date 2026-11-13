@@ -208,15 +208,16 @@ export function testAlert(): boolean {
 
 /**
  * Notifikasi patokan harga: satu kejadian = notif.mp3 diputar 3x, masing-masing
- * diikuti ucapan "patokan sudah di tercapai". Setelah tercapai fungsi ini tidak
- * dipanggil lagi sampai patokan baru dibuat/diedit (status kembali "menunggu").
+ * diikuti ucapan "patokan ... sudah di tercapai". Setelah tercapai fungsi ini tidak
+ * dipanggil lagi sampai patokan itu diedit (status kembali "menunggu").
+ * Beberapa patokan yang tercapai bersamaan diantre, jadi bunyinya tidak bertumpuk.
  */
-export function alertPatokan(times = 3): Promise<void> {
+export function alertPatokan(times = 3, speech = 'patokan sudah di tercapai'): Promise<void> {
   const count = Math.max(1, Math.round(times))
   const run = alertChain.then(async () => {
     for (let i = 0; i < count; i++) {
       await playNotifAndWait()
-      await speakAsync('patokan sudah di tercapai', 1)
+      await speakAsync(speech, 1)
     }
   })
   alertChain = run.catch(() => {})

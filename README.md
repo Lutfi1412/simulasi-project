@@ -80,6 +80,13 @@ Mode dev (hot reload) untuk dibuka dari HP: `bun run dev -- --host` → buka `ht
 Alamat LAN-nya dicetak otomatis oleh skrip dev. Jangan menyalakan dev di port 8080 saat
 container Docker hidup — skrip dev akan menolak dan memberi tahu pilihan port lain.
 
+## Aplikasi Android
+
+Aplikasi Kotlin + Jetpack Compose + WebView ada di
+`C:\Users\sawal fitah\AndroidStudioProjects\simulasi-trading` (di luar repo). UI-nya memuat
+dashboard yang sama, dengan foreground service untuk sinyal + patokan + notifikasi suara
+saat aplikasi tidak dibuka. Detail, hasil build, dan cara update: `docs/MOBILE-APP.md`.
+
 ## Dua mode
 
 **live** — data Binance realtime. Harga di header mengikuti transaksi terakhir (bukan ticker 24 jam),

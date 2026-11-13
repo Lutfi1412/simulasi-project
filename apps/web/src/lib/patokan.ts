@@ -6,39 +6,78 @@ export type PatokanStatus = 'waiting' | 'reached'
  *  - below ("di bawah"): aktif saat harga <= patokan
  *  - above ("di atas"):  aktif saat harga >= patokan
  * Tidak perlu mengisi harga saat ini; status dihitung dari harga pasar yang masuk.
+ *
+ * Sejak 13 Nov 2026 patokan boleh lebih dari satu. Setiap baris punya status
+ * sendiri, jadi beberapa patokan bisa menunggu sekaligus dan berbunyi satu per
+ * satu saat harganya tersentuh.
  */
 export interface Patokan {
+  id: string
   value: number
   direction: PatokanDirection
   status: PatokanStatus
+  createdAt: number
 }
 
-const KEY = 'sim-patokan'
+const KEY = 'sim-patokan-list'
+const LEGACY_KEY = 'sim-patokan'
+const MAX_ITEMS = 50
 
-export function loadPatokan(): Patokan | null {
-  try {
-    const raw = localStorage.getItem(KEY)
-    if (!raw) return null
-    const p = JSON.parse(raw) as Partial<Patokan>
-    if (typeof p.value !== 'number' || !Number.isFinite(p.value) || p.value <= 0) return null
-    if (p.direction !== 'above' && p.direction !== 'below') return null
-    return {
-      value: p.value,
-      direction: p.direction,
-      status: p.status === 'reached' ? 'reached' : 'waiting',
-    }
-  } catch {
-    return null
+function newId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function normalizeOne(raw: unknown): Patokan | null {
+  if (!raw || typeof raw !== 'object') return null
+  const p = raw as Partial<Patokan>
+  if (typeof p.value !== 'number' || !Number.isFinite(p.value) || p.value <= 0) return null
+  if (p.direction !== 'above' && p.direction !== 'below') return null
+  return {
+    id: typeof p.id === 'string' && p.id ? p.id : newId(),
+    value: p.value,
+    direction: p.direction,
+    status: p.status === 'reached' ? 'reached' : 'waiting',
+    createdAt: typeof p.createdAt === 'number' && Number.isFinite(p.createdAt) ? p.createdAt : Date.now(),
   }
 }
 
-export function savePatokan(p: Patokan | null): void {
+/** Muat semua patokan. Format lama (satu objek di `sim-patokan`) ikut dimigrasikan. */
+export function loadPatokans(): Patokan[] {
   try {
-    if (p) localStorage.setItem(KEY, JSON.stringify(p))
+    const raw = localStorage.getItem(KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as unknown
+      if (!Array.isArray(parsed)) return []
+      return parsed
+        .map(normalizeOne)
+        .filter((p): p is Patokan => p !== null)
+        .slice(0, MAX_ITEMS)
+    }
+
+    const legacy = localStorage.getItem(LEGACY_KEY)
+    if (!legacy) return []
+    const migrated = normalizeOne(JSON.parse(legacy) as unknown)
+    if (!migrated) return []
+    localStorage.setItem(KEY, JSON.stringify([migrated]))
+    localStorage.removeItem(LEGACY_KEY)
+    return [migrated]
+  } catch {
+    return []
+  }
+}
+
+export function savePatokans(list: Patokan[]): void {
+  try {
+    if (list.length) localStorage.setItem(KEY, JSON.stringify(list.slice(0, MAX_ITEMS)))
     else localStorage.removeItem(KEY)
   } catch {
     /* localStorage bisa diblokir; patokan tetap berlaku untuk sesi ini */
   }
+}
+
+export function createPatokan(value: number, direction: PatokanDirection): Patokan {
+  return { id: newId(), value, direction, status: 'waiting', createdAt: Date.now() }
 }
 
 export function isPatokanReached(price: number, p: Patokan): boolean {
