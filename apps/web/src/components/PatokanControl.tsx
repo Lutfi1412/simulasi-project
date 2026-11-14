@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { price } from '../lib/format'
 import {
   createPatokan,
@@ -51,6 +52,17 @@ export function PatokanControl({ currentPrice }: PatokanControlProps) {
     setDirection('below')
     setError(null)
   }, [open, editingId])
+
+  // Aplikasi Android bisa menambah/mengubah patokan dari dialog native. Dialog itu
+  // menulis ke localStorage lalu mengirim event ini supaya daftar di halaman ikut segar.
+  useEffect(() => {
+    const reload = () => {
+      announced.current.clear()
+      setItems(loadPatokans())
+    }
+    window.addEventListener('sim-patokan-changed', reload)
+    return () => window.removeEventListener('sim-patokan-changed', reload)
+  }, [])
 
   // Bunyikan sekali per patokan saat harga menyentuh angkanya, lalu statusnya "tercapai".
   useEffect(() => {
@@ -161,18 +173,19 @@ export function PatokanControl({ currentPrice }: PatokanControlProps) {
         {statusText}
       </span>
 
-      {open && (
-        <>
-          <button
-            type="button"
-            aria-label="tutup patokan"
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-40 cursor-default bg-black/40"
-          />
-          <form
-            onSubmit={submit}
-            className="fixed right-3 top-16 z-50 max-h-[calc(100vh-5rem)] w-[340px] max-w-[calc(100vw-1.5rem)] overflow-y-auto border border-line bg-panel p-3 shadow-xl"
-          >
+      {open &&
+        createPortal(
+          <>
+            <button
+              type="button"
+              aria-label="tutup patokan"
+              onClick={() => setOpen(false)}
+              className="fixed inset-0 z-40 cursor-default bg-black/40"
+            />
+            <form
+              onSubmit={submit}
+              className="fixed left-2 right-2 top-2 z-50 max-h-[calc(100dvh-1rem)] overflow-y-auto border border-line bg-panel p-3 shadow-xl sm:left-auto sm:right-3 sm:top-16 sm:max-h-[calc(100vh-5rem)] sm:w-[360px]"
+            >
             <div className="flex items-baseline justify-between">
               <span className="text-[12px] font-semibold tracking-tight">Patokan harga</span>
               <span className="num text-[10px] text-dim">harga {price(currentPrice)}</span>
@@ -300,8 +313,9 @@ export function PatokanControl({ currentPrice }: PatokanControlProps) {
               </button>
             )}
           </form>
-        </>
-      )}
+          </>,
+          document.body,
+        )}
     </div>
   )
 }

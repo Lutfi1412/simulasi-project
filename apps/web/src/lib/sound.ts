@@ -4,6 +4,48 @@ import type { Snapshot } from '../../../server/src/api/contract'
 const KEY = 'sim-sound-models'
 const NOTIF_SRC = '/notif.mp3'
 
+/**
+ * Jembatan ke aplikasi Android (WebView). WebView tidak punya Web Speech API,
+ * jadi ucapan diteruskan ke Text-to-Speech native lewat `SimulasiNative.alert`.
+ * `cycles` = berapa kali notif.mp3 diputar, `speechRepeats` = berapa kali teks diucapkan.
+ */
+interface NativeSoundBridge {
+  alert?: (text: string, cycles: number, speechRepeats: number) => void
+  speak?: (text: string, repeat: number) => void
+  syncPatokans?: (json: string) => void
+}
+
+declare global {
+  interface Window {
+    SimulasiNative?: NativeSoundBridge
+  }
+}
+
+function nativeBridge(): NativeSoundBridge | undefined {
+  if (typeof window === 'undefined') return undefined
+  return window.SimulasiNative
+}
+
+/** true bila aplikasi Android menyediakan suara native (TTS + notif.mp3). */
+export function hasNativeSound(): boolean {
+  return typeof nativeBridge()?.alert === 'function'
+}
+
+/**
+ * Minta aplikasi Android memutar notif + ucapan. Mengembalikan false bila tidak
+ * ada jembatan native, sehingga pemanggil memakai jalur Web Speech API biasa.
+ */
+function nativeAlert(text: string, cycles: number, speechRepeats: number): boolean {
+  const bridge = nativeBridge()
+  if (!bridge || typeof bridge.alert !== 'function') return false
+  try {
+    bridge.alert(text, Math.max(1, Math.round(cycles)), Math.max(1, Math.round(speechRepeats)))
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** Model mana saja yang bersuara saat sinyal masuk (disimpan di browser). */
 export function loadSoundModels(): Record<string, boolean> {
   try {
@@ -22,12 +64,21 @@ export function saveSoundModels(value: Record<string, boolean>): void {
   }
 }
 
+/** Web Speech API benar-benar tersedia di browser (bukan sekadar jembatan native). */
+function webSpeechAvailable(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    'speechSynthesis' in window &&
+    typeof SpeechSynthesisUtterance !== 'undefined'
+  )
+}
+
 export function speechSupported(): boolean {
-  return typeof window !== 'undefined' && 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined'
+  return hasNativeSound() || webSpeechAvailable()
 }
 
 function pickVoice(): SpeechSynthesisVoice | undefined {
-  if (!speechSupported()) return undefined
+  if (!webSpeechAvailable()) return undefined
   const voices = window.speechSynthesis.getVoices()
   return (
     voices.find((v) => v.lang?.toLowerCase().startsWith('id')) ??
@@ -40,9 +91,19 @@ function pickVoice(): SpeechSynthesisVoice | undefined {
 /**
  * Ucapkan teks lewat Web Speech API (di Chrome memakai voice Google).
  * `repeat` > 1 akan mengantre ucapan yang sama beberapa kali.
+ * Di aplikasi Android ucapan diteruskan ke TTS native.
  */
 export function speak(text: string, repeat = 1): boolean {
-  if (!speechSupported()) return false
+  const bridge = nativeBridge()
+  if (bridge && typeof bridge.speak === 'function') {
+    try {
+      bridge.speak(text, Math.max(1, repeat))
+      return true
+    } catch {
+      /* jatuh ke Web Speech */
+    }
+  }
+  if (!webSpeechAvailable()) return false
   const synth = window.speechSynthesis
   const voice = pickVoice()
   for (let i = 0; i < Math.max(1, repeat); i++) {
@@ -104,7 +165,7 @@ export function primeAudio(): void {
     }
   }
   // memicu pemuatan daftar voice lebih awal supaya ucapan tidak telat
-  if (speechSupported()) window.speechSynthesis.getVoices()
+  if (webSpeechAvailable()) window.speechSynthesis.getVoices()
 }
 
 /** Putar notif.mp3 dan tunggu sampai selesai sebelum lanjut ke ucapan. */
@@ -148,7 +209,7 @@ function playNotifAndWait(): Promise<void> {
 /** Ucapkan teks lalu selesai setelah ucapan terakhir berhenti (dengan batas waktu). */
 function speakAsync(text: string, repeat: number): Promise<void> {
   return new Promise((resolve) => {
-    if (!speechSupported()) {
+    if (!webSpeechAvailable()) {
       resolve()
       return
     }
@@ -184,6 +245,7 @@ let alertChain: Promise<void> = Promise.resolve()
 
 function enqueueAlert(text: string, repeat: number): Promise<void> {
   const run = alertChain.then(async () => {
+    if (nativeAlert(text, 1, repeat)) return
     await playNotifAndWait()
     await speakAsync(text, repeat)
   })
@@ -215,6 +277,7 @@ export function testAlert(): boolean {
 export function alertPatokan(times = 3, speech = 'patokan sudah di tercapai'): Promise<void> {
   const count = Math.max(1, Math.round(times))
   const run = alertChain.then(async () => {
+    if (nativeAlert(speech, count, 1)) return
     for (let i = 0; i < count; i++) {
       await playNotifAndWait()
       await speakAsync(speech, 1)
