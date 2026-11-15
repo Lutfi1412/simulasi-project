@@ -201,6 +201,33 @@ export class SimulationRuntime {
     return true
   }
 
+  /**
+   * Tutup posisi/entry tertunda SEMUA bot tanpa menyentuh modal maupun statistik.
+   * Dipakai aplikasi saat Automation dinyalakan: keenam model kembali "memantau"
+   * (netral) lalu mencari polanya masing-masing. Berbeda dengan resetBots yang
+   * mengembalikan modal dan mengosongkan riwayat.
+   */
+  neutralizeAllBots(): { neutralized: number; closed: boolean; bots: number } {
+    const mgr = this.manager()
+    const price = this.mode === 'replay' ? this.replay?.currentPrice ?? 0 : this.live.lastPrice || this.ticker.price || this.feed.getStatus().future.lastPrice
+    const ts = this.mode === 'replay' ? this.replay?.status.currentTs ?? Math.floor(Date.now() / 1000) : Math.floor(Date.now() / 1000)
+    const currentMinute = this.mode === 'replay' ? this.replay?.status.index ?? 0 : Math.floor(ts / 60)
+    let neutralized = 0
+    for (const bot of mgr.bots) {
+      const minute = Math.max(currentMinute, bot.position?.entryMinute ?? bot.pending?.minute ?? 0)
+      if (bot.neutralize(price, ts, minute)) neutralized++
+    }
+    this.log(
+      'warn',
+      neutralized
+        ? `AUTO ON: ${neutralized} model dipaksa netral (modal & statistik tidak diubah)`
+        : 'AUTO ON: semua model sudah netral',
+    )
+    this.persist()
+    this.publish()
+    return { neutralized, closed: neutralized > 0, bots: mgr.bots.length }
+  }
+
   neutralizeBot(id: string): boolean {
     const mgr = this.manager()
     const bot = mgr.botForId(id) ?? mgr.botForModel(id)

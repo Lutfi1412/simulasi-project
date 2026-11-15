@@ -162,6 +162,12 @@ export function startServer(runtime: SimulationRuntime) {
           return json({ ok: true })
         }
 
+        // Aplikasi memanggil ini saat Automation ON: semua model kembali netral
+        // (posisi/entry tertunda ditutup) tanpa mengubah modal atau statistik.
+        if (pathname === '/api/bots/neutralize-all') {
+          return json({ ok: true, ...runtime.neutralizeAllBots() })
+        }
+
         if (pathname === '/api/bots/reset-one' || pathname === '/api/bots/neutral') {
           const id = typeof body.id === 'string' ? body.id : ''
           if (!id) return json({ error: 'id bot wajib diisi' }, 400)
