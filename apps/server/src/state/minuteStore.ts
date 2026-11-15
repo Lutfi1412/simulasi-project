@@ -60,8 +60,13 @@ export class MinuteStore {
     for (const t of drop) this.rows.delete(t)
   }
 
-  /** Muat baris terakhir dari disk; aman kalau file belum ada / rusak. */
-  load(limit = 2000): number {
+  /**
+   * Muat baris terakhir dari disk; aman kalau file belum ada / rusak.
+   * Batas muat disamakan dengan `keep` (6000) supaya `compact()` saat boot tidak
+   * memangkas histori mentah yang masih ada. Sebelumnya hanya 2000 baris dimuat,
+   * sehingga setiap restart membuang ribuan menit data walau jendela 305 menit aman.
+   */
+  load(limit = this.keep): number {
     if (!existsSync(this.file)) return 0
     // berkas besar: baca ekor saja agar boot cepat
     const size = statSync(this.file).size
