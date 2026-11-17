@@ -451,17 +451,16 @@ satu-satunya alamat aplikasi, karena VPS tidak punya IP publik.
 ## 8. Verifikasi end-to-end
 
 ```bash
-# 1. aplikasi sehat di dalam VPS
+# 1. aplikasi sehat di dalam VPS (4 arus: SOL futures/spot + BTC futures/spot)
 curl -s -m 8 http://127.0.0.1:8090/api/health | python3 -c "
-import sys,json; d=json.load(sys.stdin); l=d['live']; f=d['feed']
+import sys,json; d=json.load(sys.stdin); l=d['live']; f=d['feed']; b=d['btcFeed']
 print('histori', l['historyMinutes'], '/', l['neededMinutes'], '| siap', l['ready'])
-print('futures', f['future']['connected'], f['future']['transport'], '| spot', f['spot']['connected'], f['spot']['transport'])
-print('harga terakhir', d.get('lastPrice'))
-"
-# feed BTC tidak ada di /api/health; pakai diagnostik
-curl -s -m 8 http://127.0.0.1:8090/api/diagnostics | python3 -c "
-import sys,json; d=json.load(sys.stdin); b=d['btcFeed']
+print('arus', d['feedsConnected'], '/', d['feedsTotal'])
+print('SOL futures', f['future']['connected'], '| SOL spot', f['spot']['connected'])
 print('BTC futures', b['btcFuture']['connected'], '| BTC spot', b['btcSpot']['connected'])
+"
+curl -s -m 8 http://127.0.0.1:8090/api/diagnostics | python3 -c "
+import sys,json; d=json.load(sys.stdin)
 print('masalah:', d['problems'])
 "
 

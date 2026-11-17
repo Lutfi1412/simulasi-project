@@ -64,7 +64,7 @@ export function TopBar({
     return () => clearInterval(t)
   }, [])
 
-  const { market, feed, enabled, mode } = snapshot
+  const { market, feed, btcFeed, enabled, mode } = snapshot
   const change = market.changePct
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-shell/95 backdrop-blur-sm">
@@ -76,7 +76,7 @@ export function TopBar({
           <div className="leading-tight">
             <div className="text-[13px] font-semibold tracking-tight">Simulasi 6 Model</div>
             <div className="label text-[9px]">
-              {market.symbol} · futures · paper · BTC
+              {market.symbol} · trading · BTC konteks
             </div>
           </div>
         </div>
@@ -95,6 +95,10 @@ export function TopBar({
           <div className="hidden flex-col gap-0.5 sm:flex">
             <FeedDot label="fut" connected={feed.future.connected} ageMs={now - feed.future.lastMessageTs} />
             <FeedDot label="spot" connected={feed.spot.connected} ageMs={now - feed.spot.lastMessageTs} />
+          </div>
+          <div className="hidden flex-col gap-0.5 lg:flex" title="BTC hanya konteks fitur, bukan order">
+            <FeedDot label="btc-f" connected={btcFeed.btcFuture.connected} ageMs={now - btcFeed.btcFuture.lastMessageTs} />
+            <FeedDot label="btc-s" connected={btcFeed.btcSpot.connected} ageMs={now - btcFeed.btcSpot.lastMessageTs} />
           </div>
 
           <div className="hidden flex-col items-end gap-0.5 md:flex" title="transaksi futures per detik dan jeda snapshot terakhir">

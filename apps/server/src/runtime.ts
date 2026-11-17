@@ -461,6 +461,7 @@ export class SimulationRuntime {
     const mgr = this.manager()
     const mode = this.mode
     const feed = this.feed.getStatus()
+    const btcFeed = this.btcFeed.getStatus()
     const manifest = this.models.bundle.manifest
     const outputs = mgr.lastOutputs
     const replayPrice = mode === 'replay' ? (this.replay?.currentPrice ?? 0) : 0
@@ -500,6 +501,7 @@ export class SimulationRuntime {
         source: mode === 'replay' ? 'replay' : 'binance',
       },
       feed: { future: feed.future, spot: feed.spot },
+      btcFeed: { btcFuture: btcFeed.btcFuture, btcSpot: btcFeed.btcSpot },
       trading: {
         LEVERAGE: manifest.trading.LEVERAGE,
         CAPITAL: manifest.trading.CAPITAL,

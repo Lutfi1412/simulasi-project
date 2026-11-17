@@ -5,12 +5,13 @@ interface MetaItemProps {
   label: string
   value: string
   tone?: 'normal' | 'warn' | 'good'
+  title?: string
 }
 
-function MetaItem({ label, value, tone = 'normal' }: MetaItemProps) {
+function MetaItem({ label, value, tone = 'normal', title }: MetaItemProps) {
   const color = tone === 'warn' ? 'text-amber' : tone === 'good' ? 'text-long' : 'text-mute'
   return (
-    <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+    <div className="flex items-baseline gap-1.5 whitespace-nowrap" title={title}>
       <span className="label text-[9px]">{label}</span>
       <span className={`num text-[10px] ${color}`}>{value}</span>
     </div>
@@ -24,10 +25,22 @@ interface StatusStripProps {
 }
 
 export function StatusStrip({ snapshot, busy, onReplay }: StatusStripProps) {
-  const { live, trading, replay, mode, feed, enabled } = snapshot
+  const { live, trading, replay, mode, feed, btcFeed, enabled } = snapshot
   const warmupPct = Math.min(100, (live.historyMinutes / live.neededMinutes) * 100)
   const replayPct = replay ? (replay.index / replay.total) * 100 : 0
-  const futuresDown = mode === 'live' && !feed.future.connected
+  const feeds = [feed.future, feed.spot, btcFeed.btcFuture, btcFeed.btcSpot]
+  const feedsConnected = feeds.filter((f) => f.connected).length
+  const feedsOk = feedsConnected === feeds.length
+  const downLabel =
+    mode !== 'live'
+      ? null
+      : !feed.future.connected
+        ? 'data futures SOL putus'
+        : !feed.spot.connected
+          ? 'data spot SOL putus'
+          : !btcFeed.btcFuture.connected || !btcFeed.btcSpot.connected
+            ? 'data BTC putus'
+            : null
 
   return (
     <div className="border-b border-line bg-panel">
@@ -37,12 +50,12 @@ export function StatusStrip({ snapshot, busy, onReplay }: StatusStripProps) {
             <div className="flex items-center gap-2">
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
-                  live.ready ? 'bg-long' : futuresDown ? 'bg-short' : 'bg-amber'
+                  live.ready ? 'bg-long' : downLabel ? 'bg-short' : 'bg-amber'
                 } ${live.ready ? 'live-dot' : ''}`}
                 aria-hidden
               />
-              <span className={`label text-[9px] ${live.ready ? 'text-long' : futuresDown ? 'text-short' : 'text-amber'}`}>
-                {live.ready ? 'siap' : futuresDown ? 'data futures putus' : 'mengumpulkan data'}
+              <span className={`label text-[9px] ${live.ready ? 'text-long' : downLabel ? 'text-short' : 'text-amber'}`}>
+                {live.ready ? 'siap' : (downLabel ?? 'mengumpulkan data')}
               </span>
             </div>
 
@@ -57,6 +70,12 @@ export function StatusStrip({ snapshot, busy, onReplay }: StatusStripProps) {
               </div>
             )}
 
+            <MetaItem
+              label="arus"
+              value={`${feedsConnected}/4`}
+              tone={feedsOk ? 'good' : 'warn'}
+              title="SOL futures + SOL spot + BTC futures + BTC spot. BTC hanya konteks fitur, bukan order."
+            />
             <MetaItem label="detak" value={`${live.ticksPerSec.toFixed(1)} tx/dtk`} tone={live.ticksPerSec > 0 ? 'good' : 'warn'} />
 
             {live.ready && (

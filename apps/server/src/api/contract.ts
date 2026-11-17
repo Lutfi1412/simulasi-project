@@ -183,6 +183,8 @@ export interface Snapshot {
   enabled: boolean
   market: MarketView
   feed: { future: FeedView; spot: FeedView }
+  /** Konteks BTC: hanya fitur, bukan pasar yang ditradingkan. */
+  btcFeed: { btcFuture: FeedView; btcSpot: FeedView }
   trading: TradingView
   models: ModelView[]
   bots: BotView[]

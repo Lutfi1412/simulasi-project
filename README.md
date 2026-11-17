@@ -136,6 +136,29 @@ notebook memakai gerak harga (1,5%/1,0%). Fokus pada `verify:features` + `verify
 Hasil validasi lengkap 6 model (tabel 3 lipatan, rekomendasi, catatan GRU CPU):
 `docs/HASIL-MODEL-6.md`.
 
+## SOL trading vs BTC features (tidak ambigu)
+
+Ini penting supaya tidak salah baca:
+
+| Hal | Memakai apa |
+|---|---|
+| Label / target model | **SOLUSDT futures** (`open_f/high_f/low_f/close_f` di notebook) |
+| Simulasi/backtest | harga **SOLUSDT** |
+| Bot/order di website | **SOLUSDT** |
+| Fitur `btc_*` | **BTCUSDT futures + spot** — hanya konteks, tidak pernah menjadi order |
+| Data latih | ZIP berisi **4 CSV menit**: SOL futures, SOL spot, BTC futures, BTC spot |
+
+Jadi model memprediksi arah **SOL** dengan bantuan konteks **BTC**. Ini bukan model yang
+trading BTC. Di website, status **`arus 4/4`** dan titik `btc-f`/`btc-s` di topbar
+menunjukkan keempat feed hidup. `/api/health` juga memuat `btcFeed`,
+`feedsConnected`, dan `feedsTotal`.
+
+Kalau salah satu dari 4 arus mati atau fitur BTC belum lengkap, server menandai baris
+`bad`/`ready=false` dan **tidak** memanggil model — jadi tidak ada sinyal dari input
+setengah-setengah. Data 305 menit di `data/minutes/` adalah pemanasan **live**, bukan data
+latih; data latih berasal dari ZIP 4 CSV. Tidak perlu menghapus/menambang ulang data 305
+menit untuk memakai BTC.
+
 ## Realtime Binance
 
 Server memakai **empat feed** tanpa API key:

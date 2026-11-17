@@ -90,6 +90,9 @@ export function startServer(runtime: SimulationRuntime) {
       }
 
       if (pathname === '/api/health') {
+        const feed = runtime.feed.getStatus()
+        const btcFeed = runtime.btcFeed.getStatus()
+        const feeds = [feed.future, feed.spot, btcFeed.btcFuture, btcFeed.btcSpot]
         return json({
           ok: true,
           uptimeSec: Math.round((Date.now() - runtime.startedAt) / 1000),
@@ -98,7 +101,10 @@ export function startServer(runtime: SimulationRuntime) {
           models: runtime.models.bundle.manifest.models.length,
           modelVersion: runtime.models.bundle.manifest.version,
           live: runtime.live.status,
-          feed: runtime.feed.getStatus(),
+          feed,
+          btcFeed,
+          feedsConnected: feeds.filter((f) => f.connected).length,
+          feedsTotal: feeds.length,
         })
       }
 
