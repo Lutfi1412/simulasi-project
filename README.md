@@ -1,8 +1,8 @@
 # Simulasi Model · SOLUSDT
 
 Simulasi paper trading realtime untuk model sinyal hasil export notebook
-(`futures_signal_model_sol_btc_local.ipynb`). Bundel aktif 17 Nov 2026 berisi 5 model
-(Aturan dominasi, Regresi Logistik, XGBoost, Meta-label, Ensemble) dan 40 fitur — termasuk
+(`futures_signal_model_sol_btc_local.ipynb`). Bundel aktif 17 Nov 2026 berisi **6 model**
+(Aturan dominasi, Regresi Logistik, XGBoost, Meta-label, **GRU**, Ensemble) dan 40 fitur — termasuk
 16 fitur konteks `btc_*` (dari 18 kolom baru; 2 kolom lainnya fitur SOL `tb_ratio_60` dan
 `netflow_15`). Harga dan arus transaksi diambil langsung dari WebSocket publik
 Binance, bukan data dummy. Setiap model punya bot sendiri dengan modal simulasi 1.000.000
@@ -128,10 +128,13 @@ bun run verify:sim        # ekuitas/ROI/jumlah trade vs golden_results.json (ops
 bun run verify            # fitur + model (sim dilewati; lihat catatan di bawah)
 ```
 
-Hasil bundel 17 Nov 2026: fitur **SEMUA COCOK** (selisih ≤2,5e-14, 0 baris beda);
-selisih probabilitas maksimum **1,7e-7**; sinyal berbeda **0/4244** di 5 model.
+Hasil bundel 17 Nov 2026 (6 model): fitur **SEMUA COCOK** (selisih ≤2,5e-14, 0 baris
+beda); selisih probabilitas maksimum **2,7e-7** (GRU); sinyal berbeda **0/4244** di 6 model.
 `verify:sim` sengaja berbeda: simulator website memakai TP/SL sebagai ROI (35/55),
 notebook memakai gerak harga (1,5%/1,0%). Fokus pada `verify:features` + `verify:models`.
+
+Hasil validasi lengkap 6 model (tabel 3 lipatan, rekomendasi, catatan GRU CPU):
+`docs/HASIL-MODEL-6.md`.
 
 ## Realtime Binance
 

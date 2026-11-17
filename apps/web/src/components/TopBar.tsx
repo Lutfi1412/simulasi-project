@@ -71,12 +71,12 @@ export function TopBar({
       <div className="mx-auto flex max-w-[1720px] flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 sm:h-14 sm:flex-nowrap sm:py-0 lg:px-5">
         <div className="flex shrink-0 items-center gap-2.5">
           <div className="num grid h-8 w-8 place-items-center border border-line bg-raise text-[11px] font-semibold tracking-wider">
-            S
+            S6
           </div>
           <div className="leading-tight">
-            <div className="text-[13px] font-semibold tracking-tight">Simulasi SOL · BTC</div>
+            <div className="text-[13px] font-semibold tracking-tight">Simulasi 6 Model</div>
             <div className="label text-[9px]">
-              {market.symbol} · futures · paper
+              {market.symbol} · futures · paper · BTC
             </div>
           </div>
         </div>

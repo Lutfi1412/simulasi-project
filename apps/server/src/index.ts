@@ -8,7 +8,7 @@ const server = startServer(runtime)
 
 const host = config.hostname === '0.0.0.0' ? 'localhost' : config.hostname
 console.log('')
-console.log('  SIMULASI MODEL — SOLUSDT FUTURES + KONTEKS BTC')
+console.log('  SIMULASI 6 MODEL — SOLUSDT FUTURES + KONTEKS BTC')
 console.log('  ─────────────────────────────────────────────')
 console.log(`  UI / API   http://${host}:${config.port}`)
 console.log(`  WebSocket  ws://${host}:${config.port}/ws`)

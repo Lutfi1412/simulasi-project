@@ -5,8 +5,9 @@ export notebook (`manifest.json` + `models/*.json`), model bisa diganti kapan sa
 mengubah kode — **asalkan daftar fiturnya sama dan semua fitur itu sudah dihitung
 `src/core/featureBuilder.ts`**.
 
-Bundel aktif sejak 17 Nov 2026 memakai **konteks BTCUSDT**: 40 fiturnya campuran fitur SOL
-dan **16 fitur `btc_*`** (18 kolom baru, 2 di antaranya fitur SOL `tb_ratio_60`/`netflow_15`).
+Bundel aktif sejak 17 Nov 2026 berisi **6 model** (termasuk GRU) dan memakai **konteks
+BTCUSDT**: 40 fiturnya campuran fitur SOL dan **16 fitur `btc_*`** (18 kolom baru, 2 di
+antaranya fitur SOL `tb_ratio_60`/`netflow_15`).
 Server karena itu menjalankan **empat stream** (SOL futures, SOL spot,
 BTC futures, BTC spot). Data BTC hanya menjadi fitur; order tetap untuk SOL.
 
@@ -99,6 +100,8 @@ bun run verify:features   # 40 fitur dari CSV/BTC vs replay.json — harus SEMUA
 `verify:sim` sengaja **tidak** dipakai sebagai syarat: simulator website memakai TP/SL
 sebagai ROI (35/55), sedangkan notebook memakai gerak harga (1.5%/1.0%). Perbedaannya
 bukan bug implementasi, jadi fokus pada dua skrip di atas.
+
+Laporan hasil validasi 6 model terbaru: `docs/HASIL-MODEL-6.md`.
 
 ## Rollback
 

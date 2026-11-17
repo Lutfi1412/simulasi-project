@@ -60,7 +60,7 @@ berubah — ambil yang terbaru dari `/home/ubuntu/simulasi-url.txt` (lihat bagia
 | Service aplikasi (systemd) | **tidak ada** — aplikasi dijalankan Docker, bukan systemd |
 | URL aktif | `/home/ubuntu/simulasi-url.txt` (diperbarui `~/simulasi-url.sh` tiap 2 menit + `@reboot`) |
 | Data runtime | `/home/ubuntu/simulasi-project/data/{minutes,signals,state}` (bind mount, persist). Sejak 17 Nov 2026 `minutes/` juga berisi `btc_future.jsonl` + `btc_spot.jsonl` |
-| Model | `/home/ubuntu/simulasi-project/apps/server/models` (bind mount). Bundel 17 Nov 2026: 5 model, 40 fitur, konteks BTCUSDT |
+| Model | `/home/ubuntu/simulasi-project/apps/server/models` (bind mount). Bundel 17 Nov 2026: 6 model, 40 fitur, konteks BTCUSDT |
 | Data replay | `/home/ubuntu/simulasi-project/apps/server/data/replay` (dari image, ±24 MB) |
 | Log | `journalctl -u cloudflared-simulasi` + `docker compose logs` / `docker logs simulasi-6-model` |
 | Layanan lain | `futures-signal` 8080, `rekapan-narsum-rest` 3001, `rekapan-narsum-db` 21051 — jangan disentuh |
@@ -300,7 +300,7 @@ set -a; . ./.env; set +a
 /usr/bin/env bun run apps/server/src/index.ts
 ```
 
-Banner harus menampilkan `UI / API http://localhost:8090`, mode `live`, 5 model, 40 fitur,
+Banner harus menampilkan `UI / API http://localhost:8090`, mode `live`, 6 model, 40 fitur,
 dan baris `Konteks BTCUSDT (fitur btc_*, bukan order)`.
 Di terminal kedua:
 
