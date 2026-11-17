@@ -1,5 +1,5 @@
 import { config } from '../config'
-import type { MarketKey, TradeTick } from '../core/types'
+import type { FeedMarket, MarketKey, TradeTick } from '../core/types'
 import { ensureTunnel, fetchJson } from './net'
 
 export interface MarketStatus {
@@ -13,10 +13,10 @@ export interface MarketStatus {
   transport: 'direct' | 'tunnel' | 'blocked'
 }
 
-type Handler = (market: MarketKey, tick: TradeTick) => void
+type Handler<M extends FeedMarket> = (market: M, tick: TradeTick) => void
 
-interface StreamSpec {
-  market: MarketKey
+interface StreamSpec<M extends FeedMarket> {
+  market: M
   stream: string
   rest: string
   url: string
@@ -27,18 +27,24 @@ interface StreamSpec {
  * Koneksi data Binance langsung: satu WebSocket untuk futures (aggTrade) dan satu untuk
  * spot/trade. Menyambung ulang otomatis dengan jeda bertahap, plus isi awal 50 transaksi
  * dari REST supaya jendela dominasi langsung terisi.
+ *
+ * Generik atas daftar pasar: feed SOL memakai `future/spot`, feed BTC memakai
+ * `btcFuture/btcSpot` (hanya untuk fitur, tidak pernah dipakai order).
  */
-export class BinanceFeed {
-  private sockets = new Map<MarketKey, WebSocket>()
+export class BinanceFeed<M extends FeedMarket = MarketKey> {
+  private sockets = new Map<M, WebSocket>()
   private watchdog: Timer | null = null
   private stopped = true
-  private attempt = new Map<MarketKey, number>()
-  private status = new Map<MarketKey, MarketStatus>()
-  private handlers: Handler[] = []
-  private statusHandlers: ((s: Record<MarketKey, MarketStatus>) => void)[] = []
+  private attempt = new Map<M, number>()
+  private status = new Map<M, MarketStatus>()
+  private handlers: Handler<M>[] = []
+  private statusHandlers: ((s: Record<M, MarketStatus>) => void)[] = []
 
-  constructor(private readonly symbol = config.symbol) {
-    for (const m of ['future', 'spot'] as MarketKey[]) {
+  constructor(
+    private readonly symbol = config.symbol,
+    private readonly markets: readonly M[] = ['future', 'spot'] as M[],
+  ) {
+    for (const m of markets) {
       this.status.set(m, {
         connected: false,
         lastMessageTs: 0,
@@ -51,21 +57,24 @@ export class BinanceFeed {
     }
   }
 
-  onTick(fn: Handler): void {
+  onTick(fn: Handler<M>): void {
     this.handlers.push(fn)
   }
 
-  onStatus(fn: (s: Record<MarketKey, MarketStatus>) => void): void {
+  onStatus(fn: (s: Record<M, MarketStatus>) => void): void {
     this.statusHandlers.push(fn)
   }
 
-  getStatus(): Record<MarketKey, MarketStatus> {
-    return { future: this.status.get('future')!, spot: this.status.get('spot')! }
+  getStatus(): Record<M, MarketStatus> {
+    const out = {} as Record<M, MarketStatus>
+    for (const m of this.markets) out[m] = this.status.get(m)!
+    return out
   }
 
-  private spec(market: MarketKey): StreamSpec {
+  private spec(market: M): StreamSpec<M> {
     const s = this.symbol.toLowerCase()
-    return market === 'future'
+    const futures = market === 'future' || market === 'btcFuture'
+    return futures
       ? {
           market,
           stream: `${s}@aggTrade`,
@@ -85,7 +94,7 @@ export class BinanceFeed {
   start(): void {
     if (!this.stopped) return
     this.stopped = false
-    for (const m of ['future', 'spot'] as MarketKey[]) void this.connect(m)
+    for (const m of this.markets) void this.connect(m)
     this.watchdog = setInterval(() => this.check(), 5_000)
   }
 
@@ -121,7 +130,7 @@ export class BinanceFeed {
     }
   }
 
-  private reconnect(market: MarketKey): void {
+  private reconnect(market: M): void {
     const ws = this.sockets.get(market)
     this.sockets.delete(market)
     try {
@@ -142,7 +151,7 @@ export class BinanceFeed {
     }
   }
 
-  private async connect(market: MarketKey): Promise<void> {
+  private async connect(market: M): Promise<void> {
     if (this.stopped) return
     const spec = this.spec(market)
     const st = this.status.get(market)!
@@ -242,7 +251,7 @@ export class BinanceFeed {
     }
   }
 
-  private async seed(spec: StreamSpec): Promise<void> {
+  private async seed(spec: StreamSpec<M>): Promise<void> {
     try {
       const arr = await fetchJson<{ price: string; qty: string; time: number; isBuyerMaker: boolean }[]>(spec.rest, 12_000)
       const ticks: TradeTick[] = []
@@ -259,9 +268,9 @@ export class BinanceFeed {
     }
   }
 
-  private seedHandlers: ((market: MarketKey, ticks: TradeTick[]) => void)[] = []
+  private seedHandlers: ((market: M, ticks: TradeTick[]) => void)[] = []
 
-  onSeed(fn: (market: MarketKey, ticks: TradeTick[]) => void): void {
+  onSeed(fn: (market: M, ticks: TradeTick[]) => void): void {
     this.seedHandlers.push(fn)
   }
 }

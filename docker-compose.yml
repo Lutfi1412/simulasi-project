@@ -10,6 +10,7 @@ services:
     environment:
       PORT: 8080
       SYMBOL: ${SYMBOL:-SOLUSDT}
+      BTC_SYMBOL: ${BTC_SYMBOL:-BTCUSDT}
       INITIAL_MODE: ${INITIAL_MODE:-live}
       AUTO_START: ${AUTO_START:-true}
       SIGNAL_DOMINANCE_PCT: ${SIGNAL_DOMINANCE_PCT:-85}

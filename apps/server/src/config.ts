@@ -17,6 +17,8 @@ export const config = {
   webDist: resolve(ROOT, str(process.env.WEB_DIST, 'apps/web/dist')),
 
   symbol: str(process.env.SYMBOL, 'SOLUSDT').toUpperCase(),
+  /** Konteks BTC untuk fitur btc_*; hanya data, tidak pernah dipakai order. */
+  btcSymbol: str(process.env.BTC_SYMBOL, 'BTCUSDT').toUpperCase(),
 
   /**
    * Pengaturan sinyal gaya aplikasi mining. Nilai ini HARUS sama dengan pengaturan

@@ -10,7 +10,7 @@
  *   3. salin bundel baru
  *   4. ingatkan untuk POST /api/reload (atau restart)
  */
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 
 const args = process.argv.slice(2).filter((a) => a !== '--')
@@ -82,6 +82,32 @@ for (const entry of readdirSync(srcDir)) {
   const to = join(currentDir, entry)
   rmSync(to, { recursive: true, force: true })
   cpSync(from, to, { recursive: true })
+}
+
+// Angka trading (TP/SL/margin/leverage/cooldown) sengaja dipertahankan dari bundel
+// sebelumnya. Ekspor notebook membawa TP_PCT/SL_PCT versi backtest yang jauh lebih
+// sempit; memakainya akan mengubah perilaku simulasi tanpa diminta.
+if (prev?.trading && !args.includes('--reset-trading')) {
+  const installed = readManifest(currentDir)
+  installed.trading = { ...installed.trading, ...prev.trading }
+  writeFileSync(join(currentDir, 'manifest.json'), JSON.stringify(installed))
+  console.log('trading  : dipertahankan dari bundel sebelumnya (pakai --reset-trading untuk memakai angka ekspor)')
+}
+
+// Data replay/golden ikut dipasang ke apps/server/data/replay supaya verify:* dan
+// mode replay memakai bahan yang sama dengan model baru (bukan sisa bundel lama).
+const replaySrc = join(srcDir, 'data')
+const replayDst = join(root, 'apps/server/data/replay')
+const replayFiles = ['replay.json', 'golden_proba.json', 'golden_results.json']
+if (replayFiles.some((f) => existsSync(join(replaySrc, f)))) {
+  mkdirSync(replayDst, { recursive: true })
+  let copied = 0
+  for (const f of replayFiles) {
+    if (!existsSync(join(replaySrc, f))) continue
+    cpSync(join(replaySrc, f), join(replayDst, f))
+    copied++
+  }
+  console.log(`replay   : ${copied} berkas data validasi disalin ke apps/server/data/replay`)
 }
 
 console.log(`dipasang : ${basename(srcDir)} -> apps/server/models/current`)

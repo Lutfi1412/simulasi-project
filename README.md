@@ -1,15 +1,17 @@
-# Simulasi 6 Model · SOLUSDT
+# Simulasi Model · SOLUSDT
 
-Simulasi paper trading realtime untuk 6 model sinyal (Aturan dominasi, Regresi Logistik,
-XGBoost, Meta-label, GRU, Ensemble) yang di-export dari `futures_signal_model.ipynb`.
-Harga dan arus transaksi diambil langsung dari WebSocket publik Binance — bukan data dummy.
-Setiap model punya bot sendiri dengan modal simulasi 1.000.000 dan aturan eksekusi yang
-sama, jadi perbedaan hasil murni berasal dari sinyalnya.
+Simulasi paper trading realtime untuk model sinyal hasil export notebook
+(`futures_signal_model_sol_btc_local.ipynb`). Bundel aktif 17 Nov 2026 berisi 5 model
+(Aturan dominasi, Regresi Logistik, XGBoost, Meta-label, Ensemble) dan 40 fitur — termasuk
+18 fitur konteks BTCUSDT. Harga dan arus transaksi diambil langsung dari WebSocket publik
+Binance, bukan data dummy. Setiap model punya bot sendiri dengan modal simulasi 1.000.000
+dan aturan eksekusi yang sama, jadi perbedaan hasil murni berasal dari sinyalnya.
 
 ```
 ┌─ Binance ─────────────┐        ┌─ server Bun ──────────────────────────────────┐
-│ futures aggTrade (WS) │──┐     │  minuteRecorder → featureBuilder (40 fitur)   │
-│ spot trade (WS)       │──┴────▶│  → 6 model (TS murni) → bot manager (paper)   │
+│ SOL futures aggTrade  │──┐     │  minuteRecorder → featureBuilder (40 fitur)   │
+│ SOL spot trade        │──┤     │  + konteks BTC futures/spot (fitur btc_*)     │
+│ BTC futures/spot      │──┴────▶│  → model (TS murni) → bot manager (paper)     │
 └───────────────────────┘        │  → snapshot 2 dtk → HTTP + WebSocket          │
                                  └───────────────────────────────────────────────┘
                                                     │
@@ -20,10 +22,10 @@ sama, jadi perbedaan hasil murni berasal dari sinyalnya.
 
 | Path | Isi |
 |---|---|
-| `apps/server/src/core/` | pencatat menit (port `MinuteRecorder`), 40 fitur (`build_features()` notebook) |
+| `apps/server/src/core/` | pencatat menit (port `MinuteRecorder`), 40 fitur (`build_features()` notebook, termasuk `btc_*`) |
 | `apps/server/src/models/` | inferensi murni TypeScript: rule, logreg, xgb, meta, gru, ensemble |
 | `apps/server/src/sim/bot.ts` | simulator posisi: entry open menit berikutnya, TP/SL/timeout, fee, slippage, funding |
-| `apps/server/src/feed/` | Binance WS futures+spot, aturan sinyal 85% × 12, jaringan (DoH + terowongan) |
+| `apps/server/src/feed/` | Binance WS SOL futures/spot + BTC futures/spot, aturan sinyal 85% × 12, jaringan (DoH + terowongan) |
 | `apps/server/src/live/` | pipeline live: transaksi → menit → fitur → model → bot |
 | `apps/server/src/replay/` | pemutar data validasi historis (`data/replay/replay.json`) |
 | `apps/server/src/api/` | `Bun.serve`: REST + WebSocket + serve UI statis |
@@ -92,14 +94,17 @@ saat aplikasi tidak dibuka. Detail, hasil build, dan cara update: `docs/MOBILE-A
 **live** — data Binance realtime. Harga di header mengikuti transaksi terakhir (bukan ticker 24 jam),
 jadi angkanya bergerak tiap detik; indikator `detak` menunjukkan transaksi futures per detik. Server mencatat transaksi per menit, dan sinyal baru
 keluar setelah histori cukup: **305 menit** = 240 menit lookback fitur (`ret_240`, `basis_z`,
-`vol_z`) + 60 baris urutan GRU + 5 menit cadangan untuk celah grid. Batas bawah kerasnya **300**;
-`MIN_HISTORY_MINUTES` boleh diperbesar, nilai lebih kecil otomatis dinaikkan. Histori harus menyambung
-(celah ≤5 menit diisi ffill) — itu sebabnya angka pemanasan bisa turun setelah server mati lama.
-Selama pemanasan, UI menampilkan progres dan bot tidak membuka posisi. Histori menit
-disimpan ke `apps/server/data/minutes/` sehingga restart tidak menghapus pemanasan.
+`vol_z`) + 60 baris cadangan urutan + 5 menit cadangan untuk celah grid. Batas bawah kerasnya **300**;
+`MIN_HISTORY_MINUTES` boleh diperbesar, nilai lebih kecil otomatis dinaikkan. Sejak model
+BTC (17 Nov 2026), pemanasan menunggu **empat seri** (SOL futures/spot + BTC futures/spot),
+jadi data SOL lama tetap utuh tetapi BTC harus mengumpulkan 305 menitnya sendiri. Histori
+harus menyambung (celah ≤5 menit diisi ffill) — itu sebabnya angka pemanasan bisa turun
+setelah server mati lama. Selama pemanasan, UI menampilkan progres dan bot tidak membuka
+posisi. Histori menit disimpan ke `apps/server/data/minutes/` sehingga restart tidak
+menghapus pemanasan (`btc_future.jsonl` dan `btc_spot.jsonl` terpisah dari berkas SOL).
 
 **replay** — memutar ulang data validasi yang sama dengan lipatan walk-forward notebook
-(V1/V2/V3). Berguna untuk melihat keenam model bekerja dalam hitungan detik tanpa menunggu
+(V1/V2/V3). Berguna untuk melihat semua model aktif bekerja dalam hitungan detik tanpa menunggu
 pemanasan. Kecepatan putar dibatasi CPU: kalau inference tidak sanggup, replay melambat
 sendiri dan UI menampilkan kecepatan aktual (`≈120`).
 
@@ -116,24 +121,28 @@ tiap 30 detik dan dipulihkan saat server hidup lagi.
 Port TypeScript ini diuji terhadap export Python-nya:
 
 ```bash
-bun run verify:features   # 40 fitur TS vs replay.json
+bun run verify:features   # 40 fitur TS (termasuk btc_*) vs replay.json
 bun run verify:models     # probabilitas + sinyal vs golden_proba.json
-bun run verify:sim        # ekuitas/ROI/jumlah trade vs golden_results.json
-bun run verify            # ketiganya
+bun run verify:sim        # ekuitas/ROI/jumlah trade vs golden_results.json (opsional)
+bun run verify            # fitur + model (sim dilewati; lihat catatan di bawah)
 ```
 
-Hasil terakhir: fitur 100% sama; selisih probabilitas maksimum 1,9e-6 (GRU);
-sinyal berbeda 0 dari 2343 baris; ekuitas/ROI/trade identik di 6 model × 3 lipatan.
+Hasil bundel 17 Nov 2026: fitur **SEMUA COCOK** (selisih ≤2,5e-14, 0 baris beda);
+selisih probabilitas maksimum **1,7e-7**; sinyal berbeda **0/4244** di 5 model.
+`verify:sim` sengaja berbeda: simulator website memakai TP/SL sebagai ROI (35/55),
+notebook memakai gerak harga (1,5%/1,0%). Fokus pada `verify:features` + `verify:models`.
 
 ## Realtime Binance
 
-Server memakai dua feed tanpa API key:
+Server memakai **empat feed** tanpa API key:
 
-- futures: `wss://fstream.binance.com/market/ws/<symbol>@aggTrade` + REST `fapi.binance.com`
-- spot: `wss://data-stream.binance.vision/ws/<symbol>@trade` + REST `data-api.binance.vision`
+- SOL futures: `wss://fstream.binance.com/market/ws/<symbol>@aggTrade` + REST `fapi.binance.com`
+- SOL spot: `wss://data-stream.binance.vision/ws/<symbol>@trade` + REST `data-api.binance.vision`
+- BTC futures + BTC spot: endpoint sama dengan simbol `BTC_SYMBOL` (`manifest.btc_symbol`)
 
-Keduanya wajib: fitur `basis_bps`, `basis_z`, `dom_gap_15` membandingkan futures dan spot.
-Kalau salah satu feed mati, UI menandainya dan sinyal tidak dihitung dari input yang tidak lengkap.
+Keempatnya wajib: fitur `basis_bps`, `basis_z`, `dom_gap_15` membandingkan SOL futures/spot,
+sedangkan fitur `btc_*` membandingkan BTC futures/spot dan SOL. Kalau salah satu feed mati,
+UI/diagnostik menandainya dan sinyal tidak dihitung dari input yang tidak lengkap.
 
 Jalur `fstream.binance.com/market/ws` dipakai karena jalur standar `/ws` bisa dihentikan
 di edge Binance untuk sebagian jaringan (handshake 101 tetapi tanpa frame data).
@@ -143,10 +152,10 @@ DNS-over-HTTPS Cloudflare lalu menyambung via terowongan TCP lokal dengan SNI da
 
 ## Konfigurasi
 
-Semua lewat `.env` (lihat `.env.example`): port, simbol, endpoint Binance, ambang sinyal,
-`AUTO_START`, `INITIAL_MODE`. `SIGNAL_DOMINANCE_PCT` dan `SIGNAL_STREAK` **harus** tetap
-85 dan 12 — nilainya harus sama dengan saat data mining direkam, karena fitur `sig_*`
-dilatih dari aturan itu.
+Semua lewat `.env` (lihat `.env.example`): port, `SYMBOL`, `BTC_SYMBOL`, endpoint Binance,
+ambang sinyal, `AUTO_START`, `INITIAL_MODE`. `SIGNAL_DOMINANCE_PCT` dan `SIGNAL_STREAK`
+**harus** tetap 85 dan 12 — nilainya harus sama dengan saat data mining direkam, karena
+fitur `sig_*` dilatih dari aturan itu. `BTC_SYMBOL` hanya konteks fitur; order tetap SOL.
 
 ## API
 

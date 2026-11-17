@@ -1,7 +1,7 @@
 import { config } from '../config'
 import { buildGrid, computeFeatureSeries, RUN_THRESHOLDS } from '../core/featureBuilder'
 import { MinuteRecorder } from '../core/minuteRecorder'
-import type { MarketKey, MinuteContext, TradeTick } from '../core/types'
+import type { AuxMarketKey, MarketKey, MinuteContext, TradeTick } from '../core/types'
 import { SignalEngine } from '../feed/signalEngine'
 import type { ModelRuntime } from '../models/runtime'
 import type { BotManager } from '../sim/bot'
@@ -36,6 +36,9 @@ export class LivePipeline {
   private engines: Record<MarketKey, SignalEngine>
   private stores: Record<MarketKey, MinuteStore>
   private signalStores: Record<MarketKey, SignalStore>
+  /** BTCUSDT hanya konteks fitur (btc_*), tidak pernah dipakai membuka order. */
+  private auxRecorders: Record<AuxMarketKey, MinuteRecorder>
+  private auxStores: Record<AuxMarketKey, MinuteStore>
   private lastComputed = 0
   private computeCount = 0
   private lastComputeMs = 0
@@ -79,16 +82,25 @@ export class LivePipeline {
       future: new SignalStore(`${config.dataDir}/signals/future`),
       spot: new SignalStore(`${config.dataDir}/signals/spot`),
     }
+    this.auxRecorders = { btcFuture: mkRecorder(), btcSpot: mkRecorder() }
+    this.auxStores = {
+      btcFuture: new MinuteStore(`${config.dataDir}/minutes/btc_future.jsonl`),
+      btcSpot: new MinuteStore(`${config.dataDir}/minutes/btc_spot.jsonl`),
+    }
   }
 
   /** Muat histori dari disk (dipanggil sekali saat boot). */
-  loadHistory(): { future: number; spot: number; signals: number } {
+  loadHistory(): { future: number; spot: number; btcFuture: number; btcSpot: number; signals: number } {
     const future = this.stores.future.load()
     const spot = this.stores.spot.load()
+    const btcFuture = this.auxStores.btcFuture.load()
+    const btcSpot = this.auxStores.btcSpot.load()
     const signals = this.signalStores.future.load() + this.signalStores.spot.load()
     this.stores.future.compact()
     this.stores.spot.compact()
-    return { future, spot, signals }
+    this.auxStores.btcFuture.compact()
+    this.auxStores.btcSpot.compact()
+    return { future, spot, btcFuture, btcSpot, signals }
   }
 
   /**
@@ -102,15 +114,23 @@ export class LivePipeline {
   }
 
   get status(): LiveStatus {
-    const tailFuture = this.stores.future.tailMinutes()
-    const tailSpot = this.stores.spot.tailMinutes()
-    const usable = Math.min(tailFuture, tailSpot)
+    const usable = Math.min(
+      this.stores.future.tailMinutes(),
+      this.stores.spot.tailMinutes(),
+      this.auxStores.btcFuture.tailMinutes(),
+      this.auxStores.btcSpot.tailMinutes(),
+    )
     const needed = this.neededMinutes
     return {
       historyMinutes: usable,
       neededMinutes: needed,
       ready: usable >= needed,
-      lastMinuteTs: Math.min(this.stores.future.lastMinute, this.stores.spot.lastMinute),
+      lastMinuteTs: Math.min(
+        this.stores.future.lastMinute,
+        this.stores.spot.lastMinute,
+        this.auxStores.btcFuture.lastMinute,
+        this.auxStores.btcSpot.lastMinute,
+      ),
       lastComputeMs: this.lastComputeMs,
       computeCount: this.computeCount,
       lastError: this.lastError,
@@ -131,6 +151,16 @@ export class LivePipeline {
   seed(market: MarketKey, ticks: TradeTick[]): void {
     this.recorders[market].seed(ticks)
     for (const t of ticks.slice(-config.tradeWindow)) this.engines[market].onTrade(t)
+  }
+
+  /** Isi awal BTC: hanya jendela transaksi agar buy_pct/run langsung terisi. */
+  seedAux(market: AuxMarketKey, ticks: TradeTick[]): void {
+    this.auxRecorders[market].seed(ticks)
+  }
+
+  onAuxTrade(market: AuxMarketKey, tick: TradeTick): void {
+    this.auxRecorders[market].onTrade(tick)
+    this.drainAux(market)
   }
 
   onTrade(market: MarketKey, tick: TradeTick): void {
@@ -164,6 +194,10 @@ export class LivePipeline {
       this.recorders[m].flushIdle(nowSec)
       this.drain(m)
     }
+    for (const m of ['btcFuture', 'btcSpot'] as AuxMarketKey[]) {
+      this.auxRecorders[m].flushIdle(nowSec)
+      this.drainAux(m)
+    }
     const minute = Math.floor(nowMs / 60_000)
     if (this.lastPrice > 0) this.bots.onMinuteTick(minute, nowMs, this.lastPrice)
     this.maybeCompute()
@@ -176,16 +210,37 @@ export class LivePipeline {
     this.maybeCompute()
   }
 
+  private drainAux(market: AuxMarketKey): void {
+    const rows = this.auxRecorders[market].takeCompleted()
+    if (!rows.length) return
+    for (const row of rows) this.auxStores[market].add(row)
+    this.maybeCompute()
+  }
+
   /** Hitung fitur & sinyal untuk menit terakhir yang lengkap di kedua pasar. */
   private maybeCompute(): void {
-    const m = Math.min(this.stores.future.lastMinute, this.stores.spot.lastMinute)
+    const m = Math.min(
+      this.stores.future.lastMinute,
+      this.stores.spot.lastMinute,
+      this.auxStores.btcFuture.lastMinute,
+      this.auxStores.btcSpot.lastMinute,
+    )
     if (!m || m <= this.lastComputed) return
     if (!this.status.ready) return
 
     const t0 = performance.now()
     try {
-      const count = Math.min(config.bufferMinutes, this.stores.future.size, this.stores.spot.size)
-      const grid = buildGrid(this.stores.future.map, this.stores.spot.map, m, count, RUN_THRESHOLDS)
+      const count = Math.min(
+        config.bufferMinutes,
+        this.stores.future.size,
+        this.stores.spot.size,
+        this.auxStores.btcFuture.size,
+        this.auxStores.btcSpot.size,
+      )
+      const grid = buildGrid(this.stores.future.map, this.stores.spot.map, m, count, RUN_THRESHOLDS, {
+        future: this.auxStores.btcFuture.map,
+        spot: this.auxStores.btcSpot.map,
+      })
       const X = computeFeatureSeries(grid, {
         signalsFuture: this.signalStores.future.events,
         signalsSpot: this.signalStores.spot.events,

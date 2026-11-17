@@ -41,8 +41,16 @@ export interface Grid {
   length: number
   f: MarketGrid
   s: MarketGrid | null
+  /** BTCUSDT futures/spot sejajar grid SOL; null = tidak tersedia */
+  btcF: MarketGrid | null
+  btcS: MarketGrid | null
   bad: boolean[]
   thresholds: number[]
+}
+
+export interface BtcRows {
+  future: Map<number, MinuteRow>
+  spot: Map<number, MinuteRow> | null
 }
 
 export const RUN_THRESHOLDS = [60, 70, 80, 85, 90] as const
@@ -91,6 +99,7 @@ export function buildGrid(
   endMinute: number,
   count: number,
   thresholds: readonly number[] = RUN_THRESHOLDS,
+  btcRows?: BtcRows | null,
 ): Grid {
   const k = thresholds.length
   const ts: number[] = []
@@ -186,16 +195,21 @@ export function buildGrid(
 
   const f = fill(fRows)
   const s = sRows ? fill(sRows) : null
+  const btcF = btcRows?.future ? fill(btcRows.future) : null
+  const btcS = btcRows?.spot ? fill(btcRows.spot) : null
   const bad: boolean[] = new Array(count)
   for (let i = 0; i < count; i++) {
-    // notebook: REQUIRE_RAW=True -> menit dengan src != 1 juga dianggap tidak layak
+    // notebook: REQUIRE_RAW=True -> menit dengan src != 1 juga dianggap tidak layak.
+    // Konteks BTC wajib: usia BTC > 1 menit atau data mentah BTC tidak ada = baris tidak layak.
     bad[i] =
       !isNum(f.close[i]) ||
       (s !== null && !isNum(s.close[i])) ||
       f.src[i] !== 1 ||
-      (s !== null && s.src[i] !== 1)
+      (s !== null && s.src[i] !== 1) ||
+      (btcF !== null && (!isNum(btcF.close[i]) || btcF.src[i] !== 1)) ||
+      (btcS !== null && (!isNum(btcS.close[i]) || btcS.src[i] !== 1))
   }
-  return { ts, length: count, f, s, bad, thresholds: [...thresholds] }
+  return { ts, length: count, f, s, btcF, btcS, bad, thresholds: [...thresholds] }
 }
 
 export function buildGridFromRows(
@@ -204,8 +218,9 @@ export function buildGridFromRows(
   endMinute: number,
   count: number,
   thresholds: readonly number[] = RUN_THRESHOLDS,
+  btcRows?: BtcRows | null,
 ): Grid {
-  return buildGrid(fRows, sRows, endMinute, count, thresholds)
+  return buildGrid(fRows, sRows, endMinute, count, thresholds, btcRows)
 }
 
 /** sinyal aplikasi -> fitur sig_* (dihitung sampai akhir menit, cut = ts + 59 dtk) */
@@ -452,6 +467,128 @@ export function computeFeatureSeries(g: Grid, opts: FeatureOptions = {}): Record
     put('dom_gap_15', dg15)
     put('tb_gap_15', tg15)
     put('run_gap', rgap)
+  }
+
+  if (g.btcF && g.btcS) {
+    const cbf = g.btcF.close
+    const cbs = g.btcS.close
+    const lrBtc = nanArr()
+    for (let i = 1; i < n; i++) lrBtc[i] = logRatio(cbf[i], cbf[i - 1])
+
+    for (const w of [1, 5, 15, 30, 60, 240]) {
+      const ret = nanArr()
+      const rel = nanArr()
+      for (let i = 0; i < n; i++) {
+        ret[i] = logRatio(cbf[i], lag(cbf, i, w))
+        const sol = X[`ret_${w}`][i]
+        rel[i] = Number.isFinite(ret[i]) && Number.isFinite(sol) ? ret[i] - sol : nan
+      }
+      put(`btc_ret_${w}`, ret)
+      put(`btc_rel_ret_${w}`, rel)
+    }
+
+    const rgBtc = nanArr()
+    for (let i = 0; i < n; i++) {
+      const c = cbf[i]
+      rgBtc[i] = Number.isFinite(c) && c !== 0 ? (g.btcF.high[i] - g.btcF.low[i]) / c : nan
+    }
+    put('btc_range_1', rgBtc)
+    for (const w of [15, 60]) {
+      const vol = nanArr()
+      const range = nanArr()
+      for (let i = 0; i < n; i++) {
+        vol[i] = rollStd(lrBtc, i, w)
+        range[i] = rollMean(rgBtc, i, w)
+      }
+      put(`btc_vol_${w}`, vol)
+      put(`btc_range_${w}`, range)
+    }
+
+    const btcFlow = (tag: 'f' | 's', gm: MarketGrid) => {
+      const qv = gm.quoteVol
+      const tb = gm.takerBuyQuote
+      const net = nanArr()
+      for (let i = 0; i < n; i++) net[i] = 2 * tb[i] - qv[i]
+
+      const tbr1 = nanArr()
+      for (let i = 0; i < n; i++) tbr1[i] = Number.isFinite(qv[i]) && qv[i] > 0 ? tb[i] / qv[i] : 0.5
+      put(`btc_tb_ratio_1_${tag}`, tbr1)
+
+      for (const w of [5, 15, 60]) {
+        const nf = nanArr()
+        const tr = nanArr()
+        for (let i = 0; i < n; i++) {
+          const den0 = rollSum(qv, i, w)
+          const den = Number.isFinite(den0) && den0 > 0 ? den0 : nan
+          nf[i] = Number.isFinite(den) ? rollSum(net, i, w) / den : nan
+          tr[i] = Number.isFinite(den) ? rollSum(tb, i, w) / den : nan
+        }
+        put(`btc_netflow_${w}_${tag}`, nf)
+        put(`btc_tb_ratio_${w}_${tag}`, tr)
+      }
+
+      const lv = nanArr()
+      for (let i = 0; i < n; i++) lv[i] = Number.isFinite(qv[i]) ? Math.log1p(Math.max(qv[i], 0)) : nan
+      const vz = nanArr()
+      for (let i = 0; i < n; i++) {
+        const mu = rollMean(lv, i, 240)
+        const sd = rollStd(lv, i, 240)
+        vz[i] = Number.isFinite(mu) && Number.isFinite(sd) ? (lv[i] - mu) / (sd + 1e-9) : nan
+      }
+      put(`btc_volz_${tag}`, vz)
+
+      const mt = nanArr()
+      for (let i = 0; i < n; i++) {
+        const v = gm.maxTradeUsdt[i] / (qv[i] + 1e-9)
+        mt[i] = Number.isFinite(v) ? clip(v, 0, 1) : nan
+      }
+      put(`btc_maxtrade_${tag}`, mt)
+
+      const bp = nanArr()
+      const de = nanArr()
+      for (let i = 0; i < n; i++) {
+        bp[i] = (gm.buyPctMean[i] - 50) / 50
+        de[i] = (gm.buyPctEnd[i] - 50) / 50
+      }
+      put(`btc_dom_1_${tag}`, bp)
+      put(`btc_domend_${tag}`, de)
+      for (const w of [15, 60]) {
+        const a = nanArr()
+        for (let i = 0; i < n; i++) a[i] = rollMean(bp, i, w)
+        put(`btc_dom_${w}_${tag}`, a)
+      }
+
+      for (let t = 0; t < thresholds.length; t++) {
+        const thr = thresholds[t]
+        const rb = nanArr()
+        const rs = nanArr()
+        const db = nanArr()
+        const ds = nanArr()
+        for (let i = 0; i < n; i++) {
+          rb[i] = log1pSafe(gm.runB[t][i])
+          rs[i] = log1pSafe(gm.runS[t][i])
+          db[i] = log1pSafe(gm.durB[t][i])
+          ds[i] = log1pSafe(gm.durS[t][i])
+        }
+        put(`btc_run_b${thr}_${tag}`, rb)
+        put(`btc_run_s${thr}_${tag}`, rs)
+        put(`btc_dur_b${thr}_${tag}`, db)
+        put(`btc_dur_s${thr}_${tag}`, ds)
+      }
+    }
+
+    btcFlow('f', g.btcF)
+    btcFlow('s', g.btcS)
+
+    const btcBasis = nanArr()
+    for (let i = 0; i < n; i++) {
+      btcBasis[i] =
+        Number.isFinite(cbf[i]) && Number.isFinite(cbs[i]) && cbs[i] !== 0 ? (cbf[i] / cbs[i] - 1) * 1e4 : nan
+    }
+    put('btc_basis_bps', btcBasis)
+    const btcBasisChg = nanArr()
+    for (let i = 0; i < n; i++) btcBasisChg[i] = btcBasis[i] - lag(btcBasis, i, 15)
+    put('btc_basis_chg_15', btcBasisChg)
   }
 
   {

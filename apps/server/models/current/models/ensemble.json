@@ -1,1 +1,1 @@
-{"kind":"ensemble","members":["XGBoost","Regresi Logistik","GRU"],"name":"Ensemble"}
+{"kind":"ensemble","members":["XGBoost","Regresi Logistik"],"name":"Ensemble"}

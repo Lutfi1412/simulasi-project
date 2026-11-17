@@ -4,6 +4,9 @@
  */
 
 export type MarketKey = 'future' | 'spot'
+/** Pasar pembantu: data BTCUSDT hanya dipakai sebagai fitur, bukan untuk order. */
+export type AuxMarketKey = 'btcFuture' | 'btcSpot'
+export type FeedMarket = MarketKey | AuxMarketKey
 
 export interface TradeTick {
   /** milidetik epoch (UTC) */
@@ -88,6 +91,7 @@ export interface Manifest {
   version: number
   created_utc: string
   symbol: string
+  btc_symbol?: string
   class_order: string[]
   features: string[]
   margin: number

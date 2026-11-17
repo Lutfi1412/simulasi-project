@@ -1,10 +1,7 @@
 # Format ekspor (dibuat otomatis)
 
-Urutan kelas di semua model: [NONE, LONG, SHORT]. Tiap model xgb / logreg / gru / meta memakai daftar `features` MILIKNYA SENDIRI (ada di file modelnya;
-nama kolom di data/replay.json, urutan penting!). Versi tiap model bisa dilatih dengan fitur yang berbeda, jadi `features` di manifest.json hanya gabungan
-semua kolom yang ada di replay.json. Nilai hilang = null (di JS) / NaN. Semua rumus di bawah sudah diuji di notebook dengan pembaca Python yang meniru persis algoritma ini.
-Tiap entri di manifest.models punya `source` (versi mana yang diekspor: lama asli / lama saja / fine-tune / latih ulang / rakitan) dan, bila ada, `log_loss_val`.
-selection.json: kandidat dan alasan pemilihan versi tiap model.
+Urutan kelas di semua model: [NONE, LONG, SHORT]. Fitur memakai urutan `features` di manifest.json (urutan penting!).
+Nilai hilang = null (di JS) / NaN. Semua rumus di bawah sudah diuji di notebook dengan pembaca Python yang meniru persis algoritma ini.
 
 ## Sinyal dari probabilitas
 soft: LONG bila pL>=theta && pL-pS>=margin; SHORT bila pS>=theta && pS-pL>=margin (SHORT menang bila keduanya benar), selain itu 0.
@@ -32,7 +29,7 @@ tiap layer (h0=0): r=s(Wir x+bir+Whr h+bhr); z=s(Wiz x+biz+Whz h+bhz); n=tanh(Wi
 keluaran layer terakhir pada langkah terakhir -> LayerNorm(ln_w, ln_b, ln_eps; varians biasa) -> fc (fc_w . y + fc_b) -> softmax
 
 ## ensemble.json  {members}
-rata-rata probabilitas model-model anggota (urutan kelas sama). Nama anggota = nama model lain di manifest.models (versi yang diekspor itu sendiri).
+rata-rata probabilitas model-model anggota (urutan kelas sama).
 
 ## data/
-replay.json: {columns, rows} - ts, o,h,l,c, split (kode: lihat manifest.split_codes), bad, fitur, kolom run_* ; golden_proba.json: probabilitas Python per lipatan; golden_results.json: ROI & daftar transaksi Python per model.
+replay.json: {columns, rows} - ts, o,h,l,c, split(0..5), bad, fitur, kolom run_* ; golden_proba.json: probabilitas Python per lipatan; golden_results.json: ROI & daftar transaksi Python per model.

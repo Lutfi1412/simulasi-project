@@ -39,9 +39,18 @@ interface PersistedState {
  * Orkestrator tunggal: model, feed Binance, jalur live, pemutar replay, 6 bot,
  * tombol ON/OFF, dan penyimpanan status ke disk.
  */
+function feedLabel(market: string): string {
+  if (market === 'future') return 'Futures'
+  if (market === 'spot') return 'Spot'
+  if (market === 'btcFuture') return 'BTC futures'
+  if (market === 'btcSpot') return 'BTC spot'
+  return market
+}
+
 export class SimulationRuntime {
   readonly models: ModelRuntime
-  readonly feed: BinanceFeed
+  readonly feed: BinanceFeed<'future' | 'spot'>
+  readonly btcFeed: BinanceFeed<'btcFuture' | 'btcSpot'>
   readonly live: LivePipeline
   readonly liveBots: BotManager
   replayBots: BotManager
@@ -65,7 +74,8 @@ export class SimulationRuntime {
     this.liveBots = new BotManager(modelsMeta, this.models.bundle.manifest.trading, this.models.bundle.manifest.trading.CAPITAL)
     this.replayBots = new BotManager(modelsMeta, this.models.bundle.manifest.trading, this.models.bundle.manifest.trading.CAPITAL)
     this.live = new LivePipeline(this.models, this.liveBots)
-    this.feed = new BinanceFeed(config.symbol)
+    this.feed = new BinanceFeed(config.symbol, ['future', 'spot'])
+    this.btcFeed = new BinanceFeed(this.models.bundle.manifest.btc_symbol ?? config.btcSymbol, ['btcFuture', 'btcSpot'])
 
     const onBankrupt = (bot: Bot, trade: BotTrade | undefined) => {
       const detail = trade ? ` · trade terakhir ${Math.round(trade.pnl).toLocaleString('id-ID')} (${trade.roiPct.toFixed(1)}%)` : ''
@@ -85,7 +95,10 @@ export class SimulationRuntime {
 
   // ---------------------------------------------------------------- bootstrap
 
-  start(): { history: { future: number; spot: number; signals: number }; restored: number } {
+  start(): {
+    history: { future: number; spot: number; btcFuture: number; btcSpot: number; signals: number }
+    restored: number
+  } {
     const history = this.live.loadHistory()
     const restored = this.restore()
     this.liveBots.entriesEnabled = this.enabled
@@ -100,7 +113,18 @@ export class SimulationRuntime {
       this.log('info', `isi awal ${market === 'future' ? 'futures' : 'spot'}: ${ticks.length} transaksi`)
     })
     this.feed.onStatus((s) => this.reportFeed(s))
+
+    this.btcFeed.onTick((market, tick) => {
+      if (this.mode !== 'live') return
+      this.live.onAuxTrade(market, tick)
+    })
+    this.btcFeed.onSeed((market, ticks) => {
+      if (this.mode !== 'live') return
+      this.live.seedAux(market, ticks)
+    })
+    this.btcFeed.onStatus((s) => this.reportFeed(s))
     this.feed.start()
+    this.btcFeed.start()
 
     if (this.mode === 'replay') this.enterReplay()
 
@@ -111,7 +135,10 @@ export class SimulationRuntime {
     void this.refreshTicker()
 
     this.log('info', `model v${this.models.bundle.manifest.version} dimuat: ${this.models.bundle.manifest.models.length} model`)
-    this.log('info', `feed Binance ${config.symbol} disambungkan (futures + spot)`)
+    this.log(
+      'info',
+      `feed Binance ${config.symbol} + ${this.models.bundle.manifest.btc_symbol ?? config.btcSymbol} disambungkan (4 stream)`,
+    )
     return { history, restored }
   }
 
@@ -119,6 +146,7 @@ export class SimulationRuntime {
     for (const t of this.timers) clearInterval(t)
     this.timers = []
     this.feed.stop()
+    this.btcFeed.stop()
     this.replay?.dispose()
     this.persist()
   }
@@ -266,17 +294,18 @@ export class SimulationRuntime {
     if (this.logs.length > 60) this.logs.length = 60
   }
 
-  private reportFeed(status: Record<'future' | 'spot', MarketStatus>): void {
-    for (const [market, st] of Object.entries(status) as ['future' | 'spot', MarketStatus][]) {
+  private reportFeed(status: Record<string, MarketStatus>): void {
+    for (const [market, st] of Object.entries(status)) {
       const key = `${market}`
+      const label = feedLabel(market)
       const prev = this.feedState.get(key)
       if (prev !== st.connected) {
         this.feedState.set(key, st.connected)
-        this.log(st.connected ? 'info' : 'warn', `${market === 'future' ? 'Futures' : 'Spot'} ${st.connected ? 'tersambung' : 'terputus'}`)
+        this.log(st.connected ? 'info' : 'warn', `${label} ${st.connected ? 'tersambung' : 'terputus'}`)
       }
       if (st.error && this.lastFeedError.get(key) !== st.error) {
         this.lastFeedError.set(key, st.error)
-        this.log('warn', `${market}: ${st.error}`)
+        this.log('warn', `${label}: ${st.error}`)
       }
     }
   }
@@ -300,6 +329,7 @@ export class SimulationRuntime {
   async diagnostics(): Promise<Diagnostics> {
     const now = Date.now()
     const feed = this.feed.getStatus()
+    const btcFeed = this.btcFeed.getStatus()
     const live = this.live.status
 
     const probe = async (name: string, url: string): Promise<RestProbe> => {
@@ -329,6 +359,14 @@ export class SimulationRuntime {
 
     for (const market of ['future', 'spot'] as const) {
       const st = feed[market]
+      if (!st.connected) problems.push(`feed ${market} terputus${st.error ? `: ${st.error}` : ''}`)
+      const age = ageSec(st.lastMessageTs)
+      if (st.connected && (age === null || age > 30)) {
+        problems.push(`feed ${market} tersambung tetapi tidak ada transaksi ${age ?? '?'} detik`)
+      }
+    }
+    for (const market of ['btcFuture', 'btcSpot'] as const) {
+      const st = btcFeed[market]
       if (!st.connected) problems.push(`feed ${market} terputus${st.error ? `: ${st.error}` : ''}`)
       const age = ageSec(st.lastMessageTs)
       if (st.connected && (age === null || age > 30)) {
@@ -368,6 +406,10 @@ export class SimulationRuntime {
         future: { ...feed.future, ageSec: ageSec(feed.future.lastMessageTs) },
         spot: { ...feed.spot, ageSec: ageSec(feed.spot.lastMessageTs) },
       },
+      btcFeed: {
+        btcFuture: { ...btcFeed.btcFuture, ageSec: ageSec(btcFeed.btcFuture.lastMessageTs) },
+        btcSpot: { ...btcFeed.btcSpot, ageSec: ageSec(btcFeed.btcSpot.lastMessageTs) },
+      },
       live: {
         ready: live.ready,
         historyMinutes: live.historyMinutes,
@@ -387,9 +429,13 @@ export class SimulationRuntime {
 
   /** Paksa feed Binance menyambung ulang tanpa restart proses. */
   restartFeed(): void {
-    this.log('warn', 'menyambung ulang feed Binance atas permintaan')
+    this.log('warn', 'menyambung ulang feed Binance (SOL + BTC) atas permintaan')
     this.feed.stop()
-    setTimeout(() => this.feed.start(), 400)
+    this.btcFeed.stop()
+    setTimeout(() => {
+      this.feed.start()
+      this.btcFeed.start()
+    }, 400)
   }
 
   /**

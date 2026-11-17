@@ -20,6 +20,8 @@ const manifest = JSON.parse(await Bun.file(join(MODEL, 'manifest.json')).text())
 
 const fRows = loadMinuteCsv(join(FIX, 'menit/future_SOLUSDT_1m.csv'))
 const sRows = loadMinuteCsv(join(FIX, 'menit/trade_SOLUSDT_1m.csv'))
+const bfRows = loadMinuteCsv(join(FIX, 'menit/future_BTCUSDT_1m.csv'))
+const bsRows = loadMinuteCsv(join(FIX, 'menit/trade_BTCUSDT_1m.csv'))
 const sigF = loadSignalsCsv(join(FIX, 'signals/future_SOLUSDT.csv'))
 const sigS = loadSignalsCsv(join(FIX, 'signals/trade_SOLUSDT.csv'))
 const replay = loadReplay(join(DATA, 'replay.json'))
@@ -27,11 +29,13 @@ const replay = loadReplay(join(DATA, 'replay.json'))
 const t0 = Math.min(...fRows.keys())
 const t1 = Math.max(...fRows.keys())
 const count = Math.floor((t1 - t0) / 60) + 1
-console.log(`CSV menit: ${fRows.size} baris futures, ${sRows.size} baris spot | grid ${count} menit`)
+console.log(
+  `CSV menit: ${fRows.size} futures SOL, ${sRows.size} spot SOL, ${bfRows.size} futures BTC, ${bsRows.size} spot BTC | grid ${count} menit`,
+)
 console.log(`sinyal: ${sigF.length} futures, ${sigS.length} spot`)
 console.log(`replay: ${replay.rows.length} baris x ${replay.columns.length} kolom`)
 
-const grid = buildGrid(fRows, sRows, t1, count, RUN_THRESHOLDS)
+const grid = buildGrid(fRows, sRows, t1, count, RUN_THRESHOLDS, { future: bfRows, spot: bsRows })
 const replayIndex = new Map<number, number>()
 for (let i = 0; i < replay.rows.length; i++) replayIndex.set(replay.rows[i][0] as number, i)
 const overlap = grid.ts.filter((ts) => replayIndex.has(ts)).length

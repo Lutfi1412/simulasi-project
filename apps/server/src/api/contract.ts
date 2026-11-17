@@ -153,6 +153,7 @@ export interface Diagnostics {
     lastErrorAgoMs: number | null
   }
   feed: Record<'future' | 'spot', FeedView & { ageSec: number | null }>
+  btcFeed: Record<'btcFuture' | 'btcSpot', FeedView & { ageSec: number | null }>
   live: {
     ready: boolean
     historyMinutes: number

@@ -8,9 +8,10 @@ browser ──https──▶ https://<acak>.trycloudflare.com
                         │ (cloudflared, koneksi keluar)
                         ▼
                   127.0.0.1:8090  ── Bun server (UI + REST + WS)
-                        │
-                        ├── WS Binance (futures + spot)
-                        └── apps/server/data/{minutes,signals,state}
+                         │
+                         ├── WS Binance SOL futures + spot
+                         ├── WS Binance BTC futures + spot (fitur btc_*, bukan order)
+                         └── apps/server/data/{minutes,signals,state}
 ```
 
 Target yang dipakai di dokumen ini:
@@ -58,9 +59,9 @@ berubah — ambil yang terbaru dari `/home/ubuntu/simulasi-url.txt` (lihat bagia
 | Service tunnel | `/etc/systemd/system/cloudflared-simulasi.service` (salinan: `/home/ubuntu/cloudflared-simulasi.service`) |
 | Service aplikasi (systemd) | **tidak ada** — aplikasi dijalankan Docker, bukan systemd |
 | URL aktif | `/home/ubuntu/simulasi-url.txt` (diperbarui `~/simulasi-url.sh` tiap 2 menit + `@reboot`) |
-| Data runtime | `/home/ubuntu/simulasi-project/data/{minutes,signals,state}` (bind mount, persist) |
-| Model | `/home/ubuntu/simulasi-project/apps/server/models` (bind mount) |
-| Data replay | `/home/ubuntu/simulasi-project/apps/server/data/replay` (dari image, 8,9 MB) |
+| Data runtime | `/home/ubuntu/simulasi-project/data/{minutes,signals,state}` (bind mount, persist). Sejak 17 Nov 2026 `minutes/` juga berisi `btc_future.jsonl` + `btc_spot.jsonl` |
+| Model | `/home/ubuntu/simulasi-project/apps/server/models` (bind mount). Bundel 17 Nov 2026: 5 model, 40 fitur, konteks BTCUSDT |
+| Data replay | `/home/ubuntu/simulasi-project/apps/server/data/replay` (dari image, ±24 MB) |
 | Log | `journalctl -u cloudflared-simulasi` + `docker compose logs` / `docker logs simulasi-6-model` |
 | Layanan lain | `futures-signal` 8080, `rekapan-narsum-rest` 3001, `rekapan-narsum-db` 21051 — jangan disentuh |
 
@@ -80,10 +81,11 @@ di-restart** — restart tunnel akan mengganti URL.
 ### Catatan penting
 
 1. **Data runtime jangan pernah dihapus.** `data/minutes` adalah histori menit yang dipakai
-   pemanasan 305 menit. Saat update 11 Nov 2026 data mentah berisi 2.802 baris futures /
-   2.735 spot (±2.739 menit rentang); setelah boot kode baru memuat 2.000 baris terakhir dan
-   memadatkan file, menyisakan **1.810 menit histori menyambung** (`historyMinutes`) — tetap
-   jauh di atas 305 dan `ready=true`. `data/state` menyimpan posisi/trade ekuitas bot.
+   pemanasan 305 menit. Sejak 17 Nov 2026 pemanasan menunggu **empat** seri: SOL futures,
+   SOL spot, BTC futures, BTC spot. Data SOL lama tetap utuh; BTC mulai dari nol saat feed
+   BTC pertama kali hidup, jadi `ready` bisa kembali `false` sampai BTC punya 305 menit.
+   Berkas BTC ditulis terpisah (`btc_future.jsonl`, `btc_spot.jsonl`) dan tidak mengubah
+   berkas SOL. `data/state` menyimpan posisi/trade ekuitas bot.
 2. **VPS ini tidak punya IPv6 global.** Wajib `--edge-ip-version 4` pada cloudflared, kalau
    tidak tunnel gagal daftar (`Register tunnel error ... context deadline exceeded`).
 3. **URL quick tunnel berubah setiap cloudflared restart/reboot.** Bukan bug. Pakai
@@ -265,6 +267,7 @@ WEB_DIST=apps/web/dist
 
 # ---- pasar ----
 SYMBOL=SOLUSDT
+BTC_SYMBOL=BTCUSDT
 BINANCE_SPOT_WS=wss://data-stream.binance.vision/ws
 BINANCE_SPOT_REST=https://data-api.binance.vision
 BINANCE_FUTURES_WS=wss://fstream.binance.com/market/ws
@@ -297,7 +300,8 @@ set -a; . ./.env; set +a
 /usr/bin/env bun run apps/server/src/index.ts
 ```
 
-Banner harus menampilkan `UI / API http://localhost:8090`, mode `live`, 6 model, 40 fitur.
+Banner harus menampilkan `UI / API http://localhost:8090`, mode `live`, 5 model, 40 fitur,
+dan baris `Konteks BTCUSDT (fitur btc_*, bukan order)`.
 Di terminal kedua:
 
 ```bash
@@ -454,6 +458,12 @@ print('histori', l['historyMinutes'], '/', l['neededMinutes'], '| siap', l['read
 print('futures', f['future']['connected'], f['future']['transport'], '| spot', f['spot']['connected'], f['spot']['transport'])
 print('harga terakhir', d.get('lastPrice'))
 "
+# feed BTC tidak ada di /api/health; pakai diagnostik
+curl -s -m 8 http://127.0.0.1:8090/api/diagnostics | python3 -c "
+import sys,json; d=json.load(sys.stdin); b=d['btcFeed']
+print('BTC futures', b['btcFuture']['connected'], '| BTC spot', b['btcSpot']['connected'])
+print('masalah:', d['problems'])
+"
 
 # 2. tunnel hidup
 systemctl is-active cloudflared-simulasi simulasi-6-model
@@ -466,7 +476,8 @@ Lalu buka URL di browser:
 
 - Harga di header bergerak (bukan 0 dan bukan beku).
 - `FUT`/`SPOT` hijau, `ws xx ms` wajar.
-- Panel kiri atas: `mengumpulkan data h/305` → berubah `siap` setelah ±5 jam.
+- Panel kiri atas: `mengumpulkan data h/305` → berubah `siap` setelah ±5 jam. Sejak 17 Nov
+  2026 angka ini menunggu BTC juga, jadi mungkin sempat turun ke 0 saat deploy pertama model BTC.
 - Tab REPLAY tetap bisa memutar data validasi (bukti `data/replay` ikut terkirim).
 - WebSocket lewat tunnel: indikator snapshot di UI terus diperbarui; kalau UI diam padahal
   `curl` sehat, cek `journalctl -u cloudflared-simulasi` (WS diblokir biasanya terlihat
@@ -580,11 +591,11 @@ Kalau memilih Docker, unit `simulasi-6-model.service` di langkah 6 tidak dipakai
 | `curl` di VPS sehat, URL tunnel 502 | `--url` menunjuk port salah (8080 vs 8090) atau app mati | cek `ExecStart` unit tunnel dan `systemctl status simulasi-6-model` |
 | URL tunnel balas **530** "Cloudflare Tunnel error" | cloudflared belum terdaftar ke edge (atau memilih IPv6 yang tidak ada) | `journalctl -u cloudflared-simulasi \| grep Registered`; kalau kosong tambahkan `--edge-ip-version 4` lalu restart |
 | `Register tunnel error ... context deadline exceeded` | VPS tanpa IPv6 global, cloudflared memilih AAAA; sesekali juga jaringan ISP menolak sesaat | pakai `--edge-ip-version 4`, `StartLimitIntervalSec=0`, tunggu restart otomatis |
-| Model `available:false` / tab REPLAY kosong | `apps/server/models` atau `data/replay` tidak ikut ter-deploy (repo GitHub belum lengkap) | salin `apps/server/models` (9,6 MB) + `apps/server/data/replay` (8,9 MB) dari laptop |
+| Model `available:false` / tab REPLAY kosong | `apps/server/models` atau `data/replay` tidak ikut ter-deploy | salin `apps/server/models` + `apps/server/data/replay` (±24 MB) dari laptop; model BTC juga butuh pemanasan BTC 305 menit |
 | UI lebih lambat / bundel ~495 KB | build UI dengan `NODE_ENV=development` | Dockerfile harus `ENV NODE_ENV=production` sebelum `bun run --cwd apps/web build` |
 | URL tidak pernah muncul | outbound 7844 diblokir, DNS VPS rusak | `journalctl -u cloudflared-simulasi -f`, tes `curl -I https://1.1.1.1` |
 | UI terbuka tapi harga diam | WS Binance bermasalah | `curl .../api/health` → lihat `feed.*.transport`; kalau `blocked`, cek DNS Binance di VPS (aplikasi punya DoH + tunnel otomatis) |
-| `historyMinutes` tidak naik | jam VPS meleset, feed futures mati, atau celah menit | `timedatectl`, `api/health`, lihat `data/minutes/*.jsonl` 3 baris terakhir |
+| `historyMinutes` tidak naik | jam VPS meleset, salah satu dari 4 feed mati (SOL futures/spot, BTC futures/spot), atau celah menit | `timedatectl`, `api/diagnostics` (lihat `btcFeed`), lihat `data/minutes/*.jsonl` 3 baris terakhir |
 | Pemanasan turun setelah restart | downtime > 5 menit | normal; biarkan jalan sampai 305 lagi |
 | `hitung 0x`, ekuitas tetap 1.000.000 | masih pemanasan | bukan bug — sinyal baru keluar setelah `ready=true` |
 | Service OOM-killed saat build | RAM VPS kecil | build di lokal + `scp apps/web/dist`, atau tambah swap 1 GB |
