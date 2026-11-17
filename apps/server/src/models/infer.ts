@@ -9,7 +9,7 @@ import type {
 } from './types'
 
 /**
- * Inferensi murni TypeScript untuk 6 model hasil ekspor.
+ * Inferensi murni TypeScript untuk model hasil ekspor (rule, logreg, xgb, meta, gru, ensemble).
  * Rumus mengikuti FORMAT.md di folder model (ditulis ulang dari notebook).
  * Semua fungsi menerima nilai fitur yang mungkin NaN (= null di JSON).
  */

@@ -64,6 +64,6 @@ for (const name of names) {
 }
 
 console.log('')
-if (!failures) console.log('PARITAS MODEL: 6 model menghasilkan probabilitas & sinyal yang sama dengan Python.')
+if (!failures) console.log('PARITAS MODEL: semua model menghasilkan probabilitas & sinyal yang sama dengan Python.')
 else console.log('PARITAS MODEL: ada model yang perlu diperiksa — jangan dipakai dulu.')
 process.exitCode = failures ? 1 : 0

@@ -23,7 +23,7 @@ export interface ReplayStatus {
 }
 
 /**
- * Pemutar ulang data validasi (replay.json) — 6 model diuji pada data yang sama
+ * Pemutar ulang data validasi (replay.json) — semua model diuji pada data yang sama
  * dengan lipatan walk-forward notebook, lengkap dengan bar o/h/l/c asli.
  */
 export class ReplaySource {
