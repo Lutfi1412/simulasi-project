@@ -6,7 +6,8 @@ mengubah kode — **asalkan daftar fiturnya sama dan semua fitur itu sudah dihit
 `src/core/featureBuilder.ts`**.
 
 Bundel aktif sejak 17 Nov 2026 memakai **konteks BTCUSDT**: 40 fiturnya campuran fitur SOL
-dan 18 fitur `btc_*`. Server karena itu menjalankan **empat stream** (SOL futures, SOL spot,
+dan **16 fitur `btc_*`** (18 kolom baru, 2 di antaranya fitur SOL `tb_ratio_60`/`netflow_15`).
+Server karena itu menjalankan **empat stream** (SOL futures, SOL spot,
 BTC futures, BTC spot). Data BTC hanya menjadi fitur; order tetap untuk SOL.
 
 ## 1. Export ulang dari notebook

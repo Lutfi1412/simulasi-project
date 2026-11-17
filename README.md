@@ -3,7 +3,8 @@
 Simulasi paper trading realtime untuk model sinyal hasil export notebook
 (`futures_signal_model_sol_btc_local.ipynb`). Bundel aktif 17 Nov 2026 berisi 5 model
 (Aturan dominasi, Regresi Logistik, XGBoost, Meta-label, Ensemble) dan 40 fitur — termasuk
-18 fitur konteks BTCUSDT. Harga dan arus transaksi diambil langsung dari WebSocket publik
+16 fitur konteks `btc_*` (dari 18 kolom baru; 2 kolom lainnya fitur SOL `tb_ratio_60` dan
+`netflow_15`). Harga dan arus transaksi diambil langsung dari WebSocket publik
 Binance, bukan data dummy. Setiap model punya bot sendiri dengan modal simulasi 1.000.000
 dan aturan eksekusi yang sama, jadi perbedaan hasil murni berasal dari sinyalnya.
 
