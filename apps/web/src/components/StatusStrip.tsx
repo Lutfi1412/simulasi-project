@@ -50,12 +50,12 @@ export function StatusStrip({ snapshot, busy, onReplay }: StatusStripProps) {
             <div className="flex items-center gap-2">
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
-                  live.ready ? 'bg-long' : downLabel ? 'bg-short' : 'bg-amber'
-                } ${live.ready ? 'live-dot' : ''}`}
+                  downLabel ? 'bg-short' : live.ready ? 'bg-long' : 'bg-amber'
+                } ${live.ready && !downLabel ? 'live-dot' : ''}`}
                 aria-hidden
               />
-              <span className={`label text-[9px] ${live.ready ? 'text-long' : downLabel ? 'text-short' : 'text-amber'}`}>
-                {live.ready ? 'siap' : (downLabel ?? 'mengumpulkan data')}
+              <span className={`label text-[9px] ${downLabel ? 'text-short' : live.ready ? 'text-long' : 'text-amber'}`}>
+                {downLabel ?? (live.ready ? 'siap' : 'mengumpulkan data')}
               </span>
             </div>
 
