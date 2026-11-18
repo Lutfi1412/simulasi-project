@@ -66,7 +66,7 @@ export class ReplaySource {
   private collectFolds(): void {
     const splitCol = this.featureIndex.get('split')
     if (splitCol === undefined) return
-    const names: Record<number, string> = { 3: 'V1', 4: 'V2', 5: 'V3' }
+    const names: Record<number, string> = { 3: 'VAL' }
     const seen = new Set<number>()
     for (let i = 0; i < this.total; i++) {
       const code = this.data.rows[i][splitCol]
@@ -106,6 +106,10 @@ export class ReplaySource {
     }
     const rawRuns: Record<string, number> = {}
     for (const c of this.runColumns) rawRuns[c] = this.num(c, i)
+    // Kolom run_*__raw adalah nilai mentah; run_* tanpa suffix adalah fitur log1p.
+    for (const c of this.runColumns) {
+      if (c.endsWith('__raw')) rawRuns[c.slice(0, -5)] = rawRuns[c]
+    }
     return {
       ts: this.num('ts', i),
       minuteIndex: i,

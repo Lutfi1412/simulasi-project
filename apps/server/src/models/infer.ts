@@ -164,7 +164,10 @@ export function signalFromProba(p: number[], theta: number, margin: number, hard
   return s
 }
 
-/** Aturan dominasi: tepi naik (0->1) dari run_bT_f >= N (mode both: juga spot). */
+/**
+ * Aturan dominasi: tepi naik (0->1) dari run_bT_f >= N.
+ * mode "both": wajib SOL spot. mode "all4": wajib SOL spot + BTC futures + BTC spot.
+ */
 export function ruleState(m: RuleModelFile, rawRuns: Record<string, number>): { long: boolean; short: boolean } {
   const val = (k: string) => {
     const v = rawRuns[k]
@@ -172,9 +175,15 @@ export function ruleState(m: RuleModelFile, rawRuns: Record<string, number>): { 
   }
   let cb = val(`run_b${m.T}_f`) >= m.N
   let cs = val(`run_s${m.T}_f`) >= m.N
-  if (m.mode === 'both' && m.has_spot) {
+  if ((m.mode === 'both' || m.mode === 'all4') && m.has_spot !== false) {
     cb = cb && val(`run_b${m.T}_s`) >= m.N
     cs = cs && val(`run_s${m.T}_s`) >= m.N
+  }
+  if (m.mode === 'all4' && m.has_btc !== false) {
+    cb = cb && val(`run_b${m.T}_bf`) >= m.N
+    cs = cs && val(`run_s${m.T}_bf`) >= m.N
+    cb = cb && val(`run_b${m.T}_bs`) >= m.N
+    cs = cs && val(`run_s${m.T}_bs`) >= m.N
   }
   return { long: cb, short: cs }
 }

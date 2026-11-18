@@ -44,6 +44,10 @@ export function makePredictor(root: string) {
         o[c] = typeof v === 'number' ? v : 0
       }
     }
+    // run_*__raw adalah nilai mentah; run_* tanpa suffix adalah fitur log1p.
+    for (const c of replay.columns) {
+      if (c.endsWith('__raw') && o[c] !== undefined) o[c.slice(0, -5)] = o[c]
+    }
     return o
   })
 
@@ -62,9 +66,15 @@ export function makePredictor(root: string) {
       const r = rawRows[i]
       let cb = (r[`run_b${ruleFile.T}_f`] ?? 0) >= ruleFile.N
       let cs = (r[`run_s${ruleFile.T}_f`] ?? 0) >= ruleFile.N
-      if (ruleFile.mode === 'both' && ruleFile.has_spot) {
+      if ((ruleFile.mode === 'both' || ruleFile.mode === 'all4') && ruleFile.has_spot !== false) {
         cb = cb && (r[`run_b${ruleFile.T}_s`] ?? 0) >= ruleFile.N
         cs = cs && (r[`run_s${ruleFile.T}_s`] ?? 0) >= ruleFile.N
+      }
+      if (ruleFile.mode === 'all4' && ruleFile.has_btc !== false) {
+        cb = cb && (r[`run_b${ruleFile.T}_bf`] ?? 0) >= ruleFile.N
+        cs = cs && (r[`run_s${ruleFile.T}_bf`] ?? 0) >= ruleFile.N
+        cb = cb && (r[`run_b${ruleFile.T}_bs`] ?? 0) >= ruleFile.N
+        cs = cs && (r[`run_s${ruleFile.T}_bs`] ?? 0) >= ruleFile.N
       }
       if (cb && !prevB) ruleSignal[i] = 1
       if (cs && !prevS) ruleSignal[i] = -1

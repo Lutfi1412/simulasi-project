@@ -5,9 +5,9 @@ export notebook (`manifest.json` + `models/*.json`), model bisa diganti kapan sa
 mengubah kode — **asalkan daftar fiturnya sama dan semua fitur itu sudah dihitung
 `src/core/featureBuilder.ts`**.
 
-Bundel aktif sejak 17 Nov 2026 berisi **6 model** (termasuk GRU) dan memakai **konteks
-BTCUSDT**: 40 fiturnya campuran fitur SOL dan **16 fitur `btc_*`** (18 kolom baru, 2 di
-antaranya fitur SOL `tb_ratio_60`/`netflow_15`).
+Bundel aktif 18 Nov 2026 berisi **6 model** (termasuk GRU) dan memakai **konteks BTCUSDT**:
+40 fiturnya campuran fitur SOL dan fitur `btc_*` (seleksi run 18 Nov: **18 fitur**; jumlah
+bisa berubah sesuai data/top-40).
 Server karena itu menjalankan **empat stream** (SOL futures, SOL spot,
 BTC futures, BTC spot). Data BTC hanya menjadi fitur; order tetap untuk SOL.
 

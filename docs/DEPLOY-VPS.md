@@ -60,8 +60,8 @@ berubah — ambil yang terbaru dari `/home/ubuntu/simulasi-url.txt` (lihat bagia
 | Service aplikasi (systemd) | **tidak ada** — aplikasi dijalankan Docker, bukan systemd |
 | URL aktif | `/home/ubuntu/simulasi-url.txt` (diperbarui `~/simulasi-url.sh` tiap 2 menit + `@reboot`) |
 | Data runtime | `/home/ubuntu/simulasi-project/data/{minutes,signals,state}` (bind mount, persist). Sejak 17 Nov 2026 `minutes/` juga berisi `btc_future.jsonl` + `btc_spot.jsonl` |
-| Model | `/home/ubuntu/simulasi-project/apps/server/models` (bind mount). Bundel 17 Nov 2026: 6 model, 40 fitur, konteks BTCUSDT |
-| Data replay | `/home/ubuntu/simulasi-project/apps/server/data/replay` (dari image, ±24 MB) |
+| Model | `/home/ubuntu/simulasi-project/apps/server/models` (bind mount). Bundel 18 Nov 2026: 6 model, 40 fitur, konteks BTCUSDT |
+| Data replay | `/home/ubuntu/simulasi-project/apps/server/data/replay` (dari image, ±26 MB) |
 | Log | `journalctl -u cloudflared-simulasi` + `docker compose logs` / `docker logs simulasi-6-model` |
 | Layanan lain | `futures-signal` 8080, `rekapan-narsum-rest` 3001, `rekapan-narsum-db` 21051 — jangan disentuh |
 
@@ -90,8 +90,8 @@ di-restart** — restart tunnel akan mengganti URL.
    tidak tunnel gagal daftar (`Register tunnel error ... context deadline exceeded`).
 3. **URL quick tunnel berubah setiap cloudflared restart/reboot.** Bukan bug. Pakai
    `~/simulasi-url.sh` atau `cat ~/simulasi-url.txt`.
-4. **Repo GitHub sekarang sudah lengkap** (`apps/server/models` 9,6 MB + `apps/server/data/replay`
-   8,9 MB ikut ter-commit), jadi `git clone` langsung bisa dijalankan tanpa overlay dari laptop.
+4. **Repo GitHub sekarang sudah lengkap** (`apps/server/models` + `apps/server/data/replay`
+   ±26 MB ikut ter-commit), jadi `git clone` langsung bisa dijalankan tanpa overlay dari laptop.
 5. **Dockerfile** memakai `ENV NODE_ENV=production` sebelum build UI (bundel produksi, bukan dev).
 
 ### Prosedur update kode tanpa kehilangan data (yang dipakai 11 Nov 2026)
@@ -168,7 +168,7 @@ Yang perlu diperhatikan:
 - **RAM.** Build UI (Vite) butuh ±500–800 MB. Kalau RAM 1 GB atau kurang, lihat catatan di
   langkah 3 (build di lokal lalu kirim hasilnya). Untuk runtime sendiri, aplikasi ringan:
   buffer 900 menit × 40 fitur hanya beberapa MB.
-- **Disk.** Minimal 1 GB bebas; proyek ±50 MB (model 9,6 MB + data replay 8,9 MB). Data
+- **Disk.** Minimal 1 GB bebas; proyek ±50 MB (model + data replay ±26 MB). Data
   runtime kecil: `minutes` ±0,3 MB/hari. Saat boot `MinuteStore` memuat **2000 baris
   terakhir** lalu memadatkan file ke jendela itu (jauh di atas 305 menit yang dibutuhkan),
   `signals` menyimpan 26 jam terakhir — tidak tumbuh tanpa batas.
@@ -215,7 +215,7 @@ Yang sengaja tidak dikirim:
 - `.env` — dibuat khusus VPS di langkah 4, karena port dan `HOST` berbeda.
 
 Yang **ikut** terkirim dan wajib ada: `apps/server/models/` (9,6 MB) dan
-`apps/server/data/replay/` (8,9 MB). Tanpa replay, tab REPLAY tidak bisa memutar data validasi.
+`apps/server/data/replay/` (±26 MB). Tanpa replay, tab REPLAY tidak bisa memutar data validasi.
 
 Alternatif kalau nanti repo sudah di-push ke GitHub (akun `Lutfi1412`):
 
@@ -590,7 +590,7 @@ Kalau memilih Docker, unit `simulasi-6-model.service` di langkah 6 tidak dipakai
 | `curl` di VPS sehat, URL tunnel 502 | `--url` menunjuk port salah (8080 vs 8090) atau app mati | cek `ExecStart` unit tunnel dan `systemctl status simulasi-6-model` |
 | URL tunnel balas **530** "Cloudflare Tunnel error" | cloudflared belum terdaftar ke edge (atau memilih IPv6 yang tidak ada) | `journalctl -u cloudflared-simulasi \| grep Registered`; kalau kosong tambahkan `--edge-ip-version 4` lalu restart |
 | `Register tunnel error ... context deadline exceeded` | VPS tanpa IPv6 global, cloudflared memilih AAAA; sesekali juga jaringan ISP menolak sesaat | pakai `--edge-ip-version 4`, `StartLimitIntervalSec=0`, tunggu restart otomatis |
-| Model `available:false` / tab REPLAY kosong | `apps/server/models` atau `data/replay` tidak ikut ter-deploy | salin `apps/server/models` + `apps/server/data/replay` (±24 MB) dari laptop; model BTC juga butuh pemanasan BTC 305 menit |
+| Model `available:false` / tab REPLAY kosong | `apps/server/models` atau `data/replay` tidak ikut ter-deploy | salin `apps/server/models` + `apps/server/data/replay` (±26 MB) dari laptop; model BTC juga butuh pemanasan BTC 305 menit |
 | UI lebih lambat / bundel ~495 KB | build UI dengan `NODE_ENV=development` | Dockerfile harus `ENV NODE_ENV=production` sebelum `bun run --cwd apps/web build` |
 | URL tidak pernah muncul | outbound 7844 diblokir, DNS VPS rusak | `journalctl -u cloudflared-simulasi -f`, tes `curl -I https://1.1.1.1` |
 | UI terbuka tapi harga diam | WS Binance bermasalah | `curl .../api/health` → lihat `feed.*.transport`; kalau `blocked`, cek DNS Binance di VPS (aplikasi punya DoH + tunnel otomatis) |

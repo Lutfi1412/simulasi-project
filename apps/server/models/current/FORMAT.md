@@ -7,8 +7,10 @@ Nilai hilang = null (di JS) / NaN. Semua rumus di bawah sudah diuji di notebook 
 soft: LONG bila pL>=theta && pL-pS>=margin; SHORT bila pS>=theta && pS-pL>=margin (SHORT menang bila keduanya benar), selain itu 0.
 hard (aturan dominasi): LONG bila pL>=0.5; SHORT bila pS>=0.5.
 
-## aturan_dominasi.json  {T,N,mode,has_spot,edge_only}
-cb[i] = run_b{T}_f[i] >= N ; cs[i] = run_s{T}_f[i] >= N   (null dianggap 0; mode "both": juga kolom *_s)
+## aturan_dominasi.json  {T,N,mode,has_spot,has_btc,edge_only}
+cb[i] = run_b{T}_f[i] >= N ; cs[i] = run_s{T}_f[i] >= N   (null dianggap 0)
+mode "both": juga wajib run_*_s (SOL spot). mode "all4": juga run_*_s, run_*_bf (BTC futures), run_*_bs (BTC spot).
+Kolom mentah di replay bernama run_*__raw; fitur run_* (tanpa __raw) adalah log1p dan JANGAN dipakai untuk aturan/meta.
 sinyal hanya pada tepi naik: cb[i] && !cb[i-1] (baris pertama: sebelumnya false). SHORT menimpa LONG. Probabilitas = one-hot [0,1,0]/[0,0,1]/[1,0,0].
 
 ## regresi_logistik.json  {features, classes, coef, intercept, mean, std, clip}
@@ -20,7 +22,8 @@ mulai node 0: selama f[node]>=0: x = X[f[node]]; node = x null ? m[node] : (Math
 P = softmax(offset + margin)
 
 ## meta_label.json  {T,N,features,xgb}
-d[i] = +1 bila run_b{T}_f>=N ; -1 bila run_s{T}_f>=N (SHORT menimpa) ; selain itu 0 -> P=[1,0,0]
+d[i] = +1 bila raw run_b{T}_f>=N ; -1 bila raw run_s{T}_f>=N (SHORT menimpa) ; selain itu 0 -> P=[1,0,0]
+(gunakan kolom run_*__raw, bukan fitur log1p run_* di FEATURES)
 bila d!=0: x = [features..., d]; p = sigmoid(xgb.offset[0] + jumlah daun); LONG: P=[1-p,p,0] bila d=+1; SHORT: P=[1-p,0,p] bila d=-1
 
 ## gru.json  {features, seq_len, hidden, layers[], head, mean, std, clip}
@@ -32,4 +35,4 @@ keluaran layer terakhir pada langkah terakhir -> LayerNorm(ln_w, ln_b, ln_eps; v
 rata-rata probabilitas model-model anggota (urutan kelas sama).
 
 ## data/
-replay.json: {columns, rows} - ts, o,h,l,c, split(0..5), bad, fitur, kolom run_* ; golden_proba.json: probabilitas Python per lipatan; golden_results.json: ROI & daftar transaksi Python per model.
+replay.json: {columns, rows} - ts, o,h,l,c, split(0..3), bad, fitur, kolom run_*__raw ; golden_proba.json: probabilitas Python untuk validasi; golden_results.json: ROI & daftar transaksi Python per model.

@@ -1,10 +1,10 @@
 # Simulasi Model · SOLUSDT
 
 Simulasi paper trading realtime untuk model sinyal hasil export notebook
-(`futures_signal_model_sol_btc_local.ipynb`). Bundel aktif 17 Nov 2026 berisi **6 model**
-(Aturan dominasi, Regresi Logistik, XGBoost, Meta-label, **GRU**, Ensemble) dan 40 fitur — termasuk
-16 fitur konteks `btc_*` (dari 18 kolom baru; 2 kolom lainnya fitur SOL `tb_ratio_60` dan
-`netflow_15`). Harga dan arus transaksi diambil langsung dari WebSocket publik
+(`futures_signal_model_sol_btc_local.ipynb`). Bundel aktif 18 Nov 2026 berisi **6 model**
+(Aturan dominasi, Regresi Logistik, XGBoost, Meta-label, **GRU**, Ensemble) dan 40 fitur —
+termasuk **18 fitur `btc_*`** pada seleksi run 18 Nov (jumlah bisa berubah sesuai data).
+Harga dan arus transaksi diambil langsung dari WebSocket publik
 Binance, bukan data dummy. Setiap model punya bot sendiri dengan modal simulasi 1.000.000
 dan aturan eksekusi yang sama, jadi perbedaan hasil murni berasal dari sinyalnya.
 
@@ -104,8 +104,8 @@ setelah server mati lama. Selama pemanasan, UI menampilkan progres dan bot tidak
 posisi. Histori menit disimpan ke `apps/server/data/minutes/` sehingga restart tidak
 menghapus pemanasan (`btc_future.jsonl` dan `btc_spot.jsonl` terpisah dari berkas SOL).
 
-**replay** — memutar ulang data validasi yang sama dengan lipatan walk-forward notebook
-(V1/V2/V3). Berguna untuk melihat semua model aktif bekerja dalam hitungan detik tanpa menunggu
+**replay** — memutar ulang data validasi yang sama dengan notebook: **satu set validasi
+20% (`VAL`), 80% latih**. Berguna untuk melihat semua model aktif bekerja dalam hitungan detik tanpa menunggu
 pemanasan. Kecepatan putar dibatasi CPU: kalau inference tidak sanggup, replay melambat
 sendiri dan UI menampilkan kecepatan aktual (`≈120`).
 
@@ -128,12 +128,13 @@ bun run verify:sim        # ekuitas/ROI/jumlah trade vs golden_results.json (ops
 bun run verify            # fitur + model (sim dilewati; lihat catatan di bawah)
 ```
 
-Hasil bundel 17 Nov 2026 (6 model): fitur **SEMUA COCOK** (selisih ≤2,5e-14, 0 baris
-beda); selisih probabilitas maksimum **2,7e-7** (GRU); sinyal berbeda **0/4244** di 6 model.
-`verify:sim` sengaja berbeda: simulator website memakai TP/SL sebagai ROI (35/55),
-notebook memakai gerak harga (1,5%/1,0%). Fokus pada `verify:features` + `verify:models`.
+Hasil bundel 18 Nov 2026 (6 model, 80/20 satu validasi): fitur **SEMUA COCOK** (selisih
+≤2,5e-14, 0 baris beda); selisih probabilitas maksimum **3,2e-7** (GRU); sinyal berbeda
+**0/2912** di 6 model. `verify:sim` sengaja berbeda: simulator website memakai TP/SL sebagai
+ROI (35/55), notebook memakai gerak harga (1,5%/1,0%). Fokus pada `verify:features` +
+`verify:models`.
 
-Hasil validasi lengkap 6 model (tabel 3 lipatan, rekomendasi, catatan GRU CPU):
+Hasil validasi lengkap 6 model (tabel satu validasi 20%, rekomendasi, catatan GRU CPU):
 `docs/HASIL-MODEL-6.md`.
 
 ## SOL trading vs BTC features (tidak ambigu)

@@ -262,6 +262,10 @@ export class LivePipeline {
         rawRuns[`run_s${T}_f`] = grid.f.runS[k][i]
         rawRuns[`run_b${T}_s`] = grid.s ? grid.s.runB[k][i] : 0
         rawRuns[`run_s${T}_s`] = grid.s ? grid.s.runS[k][i] : 0
+        rawRuns[`run_b${T}_bf`] = grid.btcF ? grid.btcF.runB[k][i] : 0
+        rawRuns[`run_s${T}_bf`] = grid.btcF ? grid.btcF.runS[k][i] : 0
+        rawRuns[`run_b${T}_bs`] = grid.btcS ? grid.btcS.runB[k][i] : 0
+        rawRuns[`run_s${T}_bs`] = grid.btcS ? grid.btcS.runS[k][i] : 0
       }
 
       const seqLen = Math.max(...[...this.models.bundle.models.values()].map((m2) => ('seq_len' in m2.file ? m2.file.seq_len : 0)), 1)

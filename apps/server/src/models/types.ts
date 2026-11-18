@@ -4,8 +4,9 @@ export interface RuleModelFile {
   kind: 'rule'
   T: number
   N: number
-  mode: 'fut' | 'both'
+  mode: 'fut' | 'both' | 'all4'
   has_spot: boolean
+  has_btc?: boolean
   edge_only: boolean
   name?: string
 }

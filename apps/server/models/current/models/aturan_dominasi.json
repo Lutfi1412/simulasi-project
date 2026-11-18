@@ -1,1 +1,1 @@
-{"kind":"rule","T":80,"N":50,"mode":"both","has_spot":true,"edge_only":true,"name":"Aturan dominasi"}
+{"kind":"rule","T":60,"N":50,"mode":"all4","has_spot":true,"has_btc":true,"edge_only":true,"name":"Aturan dominasi"}
