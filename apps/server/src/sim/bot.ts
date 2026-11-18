@@ -273,9 +273,22 @@ export class Bot {
     const p = this.position
     if (!p) return
     this.lastPrice = price
+    this.syncBars(ts)
     if (minute - p.entryMinute >= this.trading.HORIZON_MIN - 1) {
       this.close(price, ts, minute, 'timeout')
     }
+  }
+
+  /**
+   * Hitung ulang `bars` dari selisih waktu entry → sekarang.
+   * Live tidak pernah melewati `onBar()`, jadi dulu bars selalu 0/720. Dipakai di
+   * kedua mode (live & replay) dan idempoten karena hanya menaikkan nilai.
+   */
+  private syncBars(ts: number): void {
+    const p = this.position
+    if (!p) return
+    const elapsed = Math.floor((asSeconds(ts) - asSeconds(p.entryTs)) / 60)
+    if (elapsed > p.bars) p.bars = elapsed
   }
 
   close(exitPrice: number, ts: number, minute: number, reason: ExitReason): void {

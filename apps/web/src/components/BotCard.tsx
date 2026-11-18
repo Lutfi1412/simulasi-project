@@ -79,6 +79,9 @@ export function BotCard({
         <span className={`border px-1 py-[1px] text-[9px] font-semibold uppercase tracking-[0.06em] ${style.chip}`}>
           {style.label}
         </span>
+        <span className="num text-[9px] font-normal tracking-normal text-dim" title="modal awal bot">
+          modal {compact(bot.capital)}
+        </span>
         <span className="ml-auto flex items-center gap-1.5">
           <span
             className={`h-1.5 w-1.5 rounded-full ${
@@ -97,7 +100,6 @@ export function BotCard({
           <div className="num text-[19px] font-semibold leading-none tracking-tight">{money(bot.effectiveEquity)}</div>
           <div className="mt-1 flex items-baseline gap-2">
             <span className={`num text-[11px] font-medium ${pnlClass(roi)}`}>{pct(roi, 2)}</span>
-            <span className="num text-[10px] text-dim">dari {compact(bot.capital)}</span>
             {bot.unrealized !== 0 && (
               <span className={`num text-[10px] ${pnlClass(bot.unrealized)}`}>· {compact(bot.unrealized)} terbuka</span>
             )}
@@ -125,7 +127,6 @@ export function BotCard({
                 <span className="text-[10px] text-dim">→</span>
                 <span className="num text-[10.5px] text-ink" title="harga sekarang (realtime)">
                   {price(marketPrice)}
-                  <span className="text-[8.5px] text-dim"> kini</span>
                 </span>
                 {bot.positionRoiPct !== null ? (
                   <span
