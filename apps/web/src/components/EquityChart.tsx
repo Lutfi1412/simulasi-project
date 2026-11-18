@@ -93,6 +93,29 @@ export function EquityChart({ bots, label }: EquityChartProps) {
   })
   const visibleValues = visible.flatMap((s) => s.points.map((p) => p.value))
 
+  // Garis datar (mis. bot baru / belum ada trade) semuanya berada di 0% dan saling
+  // menimpa, sehingga warna yang digambar terakhir menutupi model lain — GRU bisa
+  // terlihat "hilang". Kelompokkan garis datar per nilai lalu geser beberapa piksel
+  // hanya untuk tampilan; nilai di legenda/tooltip tetap nilai sebenarnya.
+  const flatGroups = new Map<string, string[]>()
+  for (const s of visible) {
+    if (s.points.length < 2) continue
+    const v = s.points[0].value
+    if (!s.points.every((p) => Math.abs(p.value - v) < 1e-9)) continue
+    const key = v.toFixed(6)
+    const arr = flatGroups.get(key)
+    if (arr) arr.push(s.bot.id)
+    else flatGroups.set(key, [s.bot.id])
+  }
+  const flatOffset = (id: string): number => {
+    for (const arr of flatGroups.values()) {
+      if (arr.length < 2) continue
+      const i = arr.indexOf(id)
+      if (i >= 0) return (i - (arr.length - 1) / 2) * 2
+    }
+    return 0
+  }
+
   let yMin = -1
   let yMax = 1
   if (visibleValues.length) {
@@ -288,6 +311,7 @@ export function EquityChart({ bots, label }: EquityChartProps) {
             const d = points
               .map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.ts).toFixed(1)},${y(p.value).toFixed(1)}`)
               .join(' ')
+            const offset = flatOffset(bot.id)
             return (
               <path
                 key={bot.id}
@@ -298,6 +322,7 @@ export function EquityChart({ bots, label }: EquityChartProps) {
                 strokeLinejoin="round"
                 strokeLinecap="round"
                 opacity="0.95"
+                transform={offset ? `translate(0, ${offset.toFixed(1)})` : undefined}
               />
             )
           })}

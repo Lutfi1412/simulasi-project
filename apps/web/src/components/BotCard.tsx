@@ -14,7 +14,8 @@ function Sparkline({ points, capital, color }: SparklineProps) {
   if (points.length < 2) {
     return (
       <svg width={w} height={h} aria-hidden className="shrink-0">
-        <line x1="0" y1={h / 2} x2={w} y2={h / 2} stroke="var(--color-line)" strokeWidth="1" />
+        {/* tetap pakai warna model supaya GRU tidak tampak "hilang" saat curve baru 1 titik */}
+        <line x1="0" y1={h / 2} x2={w} y2={h / 2} stroke={color} strokeOpacity="0.65" strokeWidth="1.4" />
       </svg>
     )
   }
