@@ -539,6 +539,8 @@ export class SimulationRuntime {
         equity: b.equity,
         effectiveEquity: b.effectiveEquity,
         roiPct: b.roiPct,
+        roiNowPct: b.roiNowPct,
+        positionRoiPct: b.positionRoiPct,
         unrealized: b.unrealized,
         position: b.position
           ? {

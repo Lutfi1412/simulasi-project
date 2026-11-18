@@ -112,6 +112,22 @@ export class Bot {
     return Math.max(0, this.equity + this.unrealized)
   }
 
+  /**
+   * ROI posisi yang sedang berjalan (belum terealisasi), dihitung dari harga entry
+   * sampai harga terakhir: `arah × (harga/entry − 1) × leverage × 100`.
+   * `null` kalau tidak ada posisi atau harga belum masuk.
+   */
+  get positionRoiPct(): number | null {
+    const p = this.position
+    if (!p || !this.lastPrice) return null
+    return p.side * (this.lastPrice / p.entry - 1) * this.trading.LEVERAGE * 100
+  }
+
+  /** ROI realtime bot: ekuitas efektif (termasuk untung/rugi berjalan) terhadap modal. */
+  get roiNowPct(): number {
+    return (this.effectiveEquity / this.capital - 1) * 100
+  }
+
   /** Terima sinyal di akhir menit (belum membuka posisi). */
   queueEntry(side: Side, minute: number, ts: number, p: number[], price: number): boolean {
     if (this.position || this.pending) return false
@@ -467,6 +483,8 @@ export class BotManager {
         equity: b.equity,
         effectiveEquity: b.effectiveEquity,
         roiPct: b.roiPct,
+        roiNowPct: b.roiNowPct,
+        positionRoiPct: b.positionRoiPct,
         unrealized: b.unrealized,
         position: b.position
           ? {

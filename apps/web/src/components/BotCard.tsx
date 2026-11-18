@@ -61,7 +61,9 @@ export function BotCard({
 }: BotCardProps) {
   const style = kindStyle(bot.kind)
   const active = Boolean(bot.position)
-  const roi = bot.roiPct
+  // Pakai ROI realtime (termasuk untung/rugi berjalan) supaya cocok dengan angka
+  // ekuitas efektif di atasnya. Tanpa posisi, nilainya sama dengan roiPct.
+  const roi = bot.roiNowPct
   const barPct = bot.position ? Math.min(100, (bot.position.bars / trading.HORIZON_MIN) * 100) : 0
   const p = model?.p ?? [1, 0, 0]
   const available = model?.available ?? true
@@ -108,7 +110,7 @@ export function BotCard({
         {bot.position ? (
           <>
             <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5">
+              <span className="flex flex-wrap items-baseline gap-1.5">
                 <span
                   className={`border px-1 py-[1px] text-[9px] font-bold tracking-wider ${
                     bot.position.side === 1 ? 'border-long/40 bg-long/10 text-long' : 'border-short/40 bg-short/10 text-short'
@@ -116,11 +118,27 @@ export function BotCard({
                 >
                   {sideLabel(bot.position.side)}
                 </span>
-                <span className="num text-[10.5px] text-mute">
-                  {price(bot.position.entry)} → <span className="text-ink">{price(marketPrice)}</span>
+                <span className="num text-[10.5px] text-mute" title="harga entry posisi">
+                  {price(bot.position.entry)}
+                  <span className="text-[8.5px] text-dim"> entry</span>
                 </span>
+                <span className="text-[10px] text-dim">→</span>
+                <span className="num text-[10.5px] text-ink" title="harga sekarang (realtime)">
+                  {price(marketPrice)}
+                  <span className="text-[8.5px] text-dim"> kini</span>
+                </span>
+                {bot.positionRoiPct !== null ? (
+                  <span
+                    className={`num text-[11px] font-semibold ${pnlClass(bot.positionRoiPct)}`}
+                    title={`ROI berjalan = arah × (harga kini / entry − 1) × leverage ${trading.LEVERAGE}×`}
+                  >
+                    ({pct(bot.positionRoiPct, 2)})
+                  </span>
+                ) : (
+                  <span className="num text-[10px] text-dim">(menunggu harga…)</span>
+                )}
               </span>
-              <span className="num text-[10px] text-dim">
+              <span className="num shrink-0 text-[10px] text-dim">
                 {bot.position.bars}/{trading.HORIZON_MIN} mnt
               </span>
             </div>

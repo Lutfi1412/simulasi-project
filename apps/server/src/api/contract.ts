@@ -45,6 +45,13 @@ export interface BotStatsView {
   profitFactor: number
 }
 
+/**
+ * ROI posisi yang sedang terbuka, sudah dikali leverage dan dihitung dari harga entry
+ * sampai harga terakhir: `arah × (harga sekarang/entry − 1) × leverage × 100`.
+ * `null` kalau tidak ada posisi atau harga belum masuk.
+ */
+export type PositionRoiPct = number | null
+
 export interface BotView {
   id: string
   model: string
@@ -54,7 +61,10 @@ export interface BotView {
   equity: number
   effectiveEquity: number
   roiPct: number
+  /** ROI realtime: ekuitas efektif (termasuk untung/rugi berjalan) terhadap modal */
+  roiNowPct: number
   unrealized: number
+  positionRoiPct: PositionRoiPct
   position: PositionView | null
   pending: { side: Side; minute: number } | null
   stats: BotStatsView
