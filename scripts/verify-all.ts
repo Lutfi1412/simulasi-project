@@ -5,7 +5,7 @@
  *   3. sim    — ekuitas/ROI/trade vs golden_results.json (opsional)
  *
  * `verify:sim` dilewati secara default karena simulator website memakai TP/SL sebagai
- * ROI (35/55), sedangkan notebook memakai gerak harga (1.5%/1.0%). Perbedaan itu
+ * ROI (25/60), sedangkan notebook memakai gerak harga (1.0%/2.4%). Perbedaan itu
  * disengaja; jalankan manual atau pakai `bun run verify -- --with-sim` bila ingin tetap
  * membandingkannya. Keluar dengan kode 1 kalau ada langkah yang gagal.
  */
@@ -35,7 +35,7 @@ for (const [label, cmd] of steps) {
 
 if (!withSim) {
   console.log(
-    '\n(verify:sim dilewati — TP/SL website 35/55 vs notebook 1.5%/1.0% memang berbeda. ' +
+    '\n(verify:sim dilewati — TP/SL website 25/60 vs notebook 1.0%/2.4% memang berbeda. ' +
       'Jalankan `bun run verify:sim` atau `bun run verify -- --with-sim` bila perlu.)',
   )
 }

@@ -31,7 +31,7 @@ Yang penting untuk kompatibilitas:
 | `features` | daftar fitur **identik** dengan hasil `featureBuilder.ts`. Model tanpa BTC butuh builder versi lama; model dengan `btc_*` butuh feed BTC (sudah ada sejak 17 Nov 2026) |
 | `btc_symbol` | `BTCUSDT` (dipakai feed konteks; fallback `BTC_SYMBOL` di `.env`) |
 | `signal_rule` | 85% × 12 (sama dengan `SIGNAL_DOMINANCE_PCT` / `SIGNAL_STREAK`) |
-| `trading` | **tidak dipakai apa adanya** — `models:install` mempertahankan angka dari bundel lama (TP 35 / SL 55 / margin 0.5 / lev 25 / cooldown 30). Pakai `--reset-trading` hanya kalau memang ingin memakai angka backtest ekspor (TP 1.5% / SL 1.0% harga) |
+| `trading` | **tidak dipakai apa adanya** — `models:install` mempertahankan angka dari bundel lama (TP 25 / SL 60 / margin 0.5 / lev 25 / cooldown 30). Pakai `--reset-trading` hanya kalau memang ingin memakai angka backtest ekspor (TP 1.0% / SL 2.4% harga) |
 | `symbol` | harus sama dengan `SYMBOL` di `.env` |
 
 `models:install` menolak bundel yang daftar fiturnya berbeda, kecuali dipaksa `--force`.
@@ -98,7 +98,7 @@ bun run verify:features   # 40 fitur dari CSV/BTC vs replay.json — harus SEMUA
 ```
 
 `verify:sim` sengaja **tidak** dipakai sebagai syarat: simulator website memakai TP/SL
-sebagai ROI (35/55), sedangkan notebook memakai gerak harga (1.5%/1.0%). Perbedaannya
+sebagai ROI (25/60), sedangkan notebook memakai gerak harga (1.0%/2.4%). Perbedaannya
 bukan bug implementasi, jadi fokus pada dua skrip di atas.
 
 Laporan hasil validasi 6 model terbaru: `docs/HASIL-MODEL-6.md`.

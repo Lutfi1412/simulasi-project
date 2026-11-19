@@ -128,10 +128,10 @@ bun run verify:sim        # ekuitas/ROI/jumlah trade vs golden_results.json (ops
 bun run verify            # fitur + model (sim dilewati; lihat catatan di bawah)
 ```
 
-Hasil bundel 18 Nov 2026 (6 model, 80/20 satu validasi): fitur **SEMUA COCOK** (selisih
-≤2,5e-14, 0 baris beda); selisih probabilitas maksimum **3,2e-7** (GRU); sinyal berbeda
-**0/2912** di 6 model. `verify:sim` sengaja berbeda: simulator website memakai TP/SL sebagai
-ROI (35/55), notebook memakai gerak harga (1,5%/1,0%). Fokus pada `verify:features` +
+Hasil bundel 19 Nov 2026 (6 model, 80/20 satu validasi): fitur **SEMUA COCOK** (selisih
+≤2,5e-14, 0 baris beda); selisih probabilitas maksimum **1,9e-7** (XGBoost); sinyal berbeda
+**0/3511** di 6 model. `verify:sim` sengaja berbeda: simulator website memakai TP/SL sebagai
+ROI (25/60), notebook memakai gerak harga (1,0%/2,4%). Fokus pada `verify:features` +
 `verify:models`.
 
 Hasil validasi lengkap 6 model (tabel satu validasi 20%, rekomendasi, catatan GRU CPU):
